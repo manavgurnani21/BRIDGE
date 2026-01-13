@@ -3,24 +3,49 @@ BRIDGE: Bridging Sequence–Structure Motifs and Genetic Variants for Genome-wid
 </h1>
 
 <p align="center">
-  <a href="https://github.com/wangyb97/BRIDGE">
-    <img src="https://img.shields.io/badge/BRIDGE-python-purple">
+
+<!-- GitHub Actions CI -->
+
+<a href="https://github.com/wangyb97/BRIDGE/actions/workflows/ci.yml">
+    <img src="https://github.com/wangyb97/BRIDGE/actions/workflows/ci.yml/badge.svg">
   </a>
-  <a href="https://github.com/wangyb97/BRIDGE/stargazers">
-    <img src="https://img.shields.io/github/stars/wangyb97/BRIDGE">
+
+<!-- Language -->
+
+<a href="https://github.com/wangyb97/BRIDGE">
+    <img src="https://img.shields.io/badge/BRIDGE-Python-blue.svg">
   </a>
-  <a href="https://github.com/wangyb97/BRIDGE/network/members">
-    <img src="https://img.shields.io/github/forks/wangyb97/BRIDGE">
+
+<!-- Stars -->
+
+<a href="https://github.com/wangyb97/BRIDGE/stargazers">
+    <img src="https://img.shields.io/github/stars/wangyb97/BRIDGE?style=flat&color=yellow">
   </a>
-  <a href="https://github.com/wangyb97/BRIDGE/issues">
-    <img src="https://img.shields.io/github/issues/wangyb97/BRIDGE">
+
+<!-- Forks -->
+
+<a href="https://github.com/wangyb97/BRIDGE/network/members">
+    <img src="https://img.shields.io/github/forks/wangyb97/BRIDGE?style=flat&color=orange">
   </a>
-  <a href="https://github.com/wangyb97/BRIDGE/blob/master/LICENSE">
-    <img src="https://img.shields.io/github/license/wangyb97/BRIDGE">
+
+<!-- Issues -->
+
+<a href="https://github.com/wangyb97/BRIDGE/issues">
+    <img src="https://img.shields.io/github/issues/wangyb97/BRIDGE?style=flat&color=informational">
   </a>
+
+<!-- License -->
+
+<a href="https://github.com/wangyb97/BRIDGE/blob/master/LICENSE">
+    <img src="https://img.shields.io/github/license/wangyb97/BRIDGE?color=green">
+  </a>
+
+<!-- Contributors -->
+
 <a href="https://github.com/wangyb97/BRIDGE#contributors-">
-	<img src="https://img.shields.io/badge/all_contributors-1-purple.svg">
-	</a>
+    <img src="https://img.shields.io/badge/All_Contributors-1-purple.svg">
+  </a>
+
 </p>
 
 ## 📑 Table of Contents
@@ -30,7 +55,8 @@ BRIDGE: Bridging Sequence–Structure Motifs and Genetic Variants for Genome-wid
   - [Tested Environment](#tested-environment)
   - [Prerequisites](#1-prerequisites)
   - [Recommended installation (Conda)](#2-recommended-installation-conda)
-- [Data & Resources](#data--resources)
+  - [Running in docker (Optional)](#3-running-in-docker-optional)
+- [Data &amp; Resources](#data--resources)
 - [Usage](#usage)
   - [Train](#1-train)
   - [Validate](#2-validate-evaluate-a-saved-model)
@@ -68,19 +94,39 @@ This multimodal and interpretable design positions BRIDGE as a powerful tool for
 
 ### Tested Environment
 
-BRIDGE is platform-agnostic and can run on Linux, macOS, and Windows (via WSL).Below are the environments we have tested to ensure reproducibility:
+BRIDGE is platform-agnostic and can run on Linux, macOS, and Windows (via WSL). Below are the hardware and software we have tested to ensure reproducibility:
 
-- **OS**: Ubuntu 20.04.4 LTS
-- **GPU**: NVIDIA A40 (48 GB VRAM)
-- **CUDA**: 12.4
+| GPU                     | VRAM  | Driver version | CUDA version |
+| ----------------------- | ----- | -------------- | ------------ |
+| NVIDIA A40              | 48 GB | 550.54.14      | 12.4         |
+| NVIDIA L40              | 48 GB | 550.54.14      | 12.4         |
+| Quadro RTX 6000         | 24 GB | 550.54.14      | 12.4         |
+| NVIDIA GeForce RTX 3090 | 24 GB | 580.95.05      | 13.0         |
+| NVIDIA TITAN RTX        | 24 GB | 580.95.05      | 13.0         |
 
-### 1) Prerequisites
+#### 1) Prerequisites
 
-- Python = 3.10.10
-- CUDA-enabled GPU recommended (24 GB VRAM for typical batch sizes)
-- PyTorch (matching your CUDA version), PyTorch Geometric (GCNConv)
-- Hugging Face Transformers (for the tokenizer/model loader)
-- Optional: TensorBoard/PyCrayon for logging
+The following table summarizes the key software dependencies and the tested versions for BRIDGE:
+
+| Package         | Stable version |
+| --------------- | -------------- |
+| python          | 3.10.10        |
+| torch           | 2.0.1          |
+| torchvision     | 0.15.2         |
+| torch-geometric | 2.6.1          |
+| transformers    | 4.41.2         |
+| tokenizers      | 0.19.1         |
+| numpy           | 1.23.5         |
+| scipy           | 1.10.1         |
+| pandas          | 2.0.0          |
+| scikit-learn    | 1.6.1          |
+| biopython       | 1.85           |
+| viennarna       | 2.6.4          |
+| tqdm            | 4.67.1         |
+| matplotlib      | 3.4.1          |
+| seaborn         | 0.13.2         |
+| captum          | 0.7.0          |
+| shap            | 0.41.0         |
 
 ### 2) Recommended installation (Conda)
 
@@ -88,6 +134,32 @@ BRIDGE is platform-agnostic and can run on Linux, macOS, and Windows (via WSL).B
 # Create and activate an environment
 conda env create -f BRIDGE.yml
 conda activate BRIDGE
+```
+
+### 3) Running in docker (Optional)
+
+If you prefer a fully containerized environment, BRIDGE can also run in Docker.
+
+#### Step 1: Install Docker
+
+Download and install the latest Docker version for your platform:
+[Docker Installers](https://docs.docker.com/get-started/get-docker/).
+
+To enable GPU access inside Docker, install the
+[NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
+
+#### Step 2: Build and run the Docker image
+
+Build the image:
+
+```bash
+docker build -t bridge:latest .
+```
+
+Launch a container with GPU support:
+
+```bash
+docker run --rm -it --gpus all bridge:latest
 ```
 
 ## 📂Data & Resources
@@ -107,13 +179,15 @@ To ensure reproducibility and ease of use, we provide all necessary resources pr
 - 🔗 [figshare DOI (v2)](https://doi.org/10.6084/m9.figshare.29819843.v2)
 - 🌐 [BRIDGE online portal](http://rbp.aibio-lab.com/app/api/download/index/)
 
-After downloading, extract the files to the corresponding locations under your BRIDGE root directory.
+After downloading, extract the files to the corresponding locations under BRIDGE root directory.
 
 ## 🚀Usage
 
-Below are the exact commands you provided, with annotations for each flag so the README doubles as a quick reference.
+Below are GPU and CPU versions of each command. Use --use_cpu to force CPU even when GPUs are available.
 
 ### 1) Train
+
+#### GPU version (default)
 
 ```bash
 python main.py \
@@ -121,6 +195,20 @@ python main.py \
     --data_path ./dataset \
     --data_file AUH_HepG2 \
     --device_num 0 \
+    --early_stopping 20 \
+    --Transformer_path ./RBPformer \
+    --model_save_path ./results/model \
+    --lr 0.001
+```
+
+#### CPU version (force CPU)
+
+```bash
+python main.py \
+    --train \
+    --data_path ./dataset \
+    --data_file AUH_HepG2 \
+    --use_cpu \
     --early_stopping 20 \
     --Transformer_path ./RBPformer \
     --model_save_path ./results/model \
@@ -135,6 +223,8 @@ python main.py \
   Folder containing `<DATA_FILE>_pos.fa` and `<DATA_FILE>_neg.fa`.
 - `--data_file AUH_HepG2`
   Dataset stem. Loader looks for `AUH_HepG2_pos.fa` and `AUH_HepG2_neg.fa` in `--data_path`.
+- `--use_cpu`
+  Force CPU mode even if CUDA is available.
 - `--device_num 0`
   Index of the CUDA device (equivalent to `torch.cuda.set_device(0)`).
 - `--early_stopping 20`
@@ -153,12 +243,26 @@ python main.py \
 
 ### 2) Validate (Evaluate a saved model)
 
+#### GPU version (default)
+
 ```bash
 python main.py \
     --validate \
     --data_path ./dataset \
     --data_file AUH_HepG2 \
     --device_num 0 \
+    --Transformer_path ./RBPformer \
+    --model_save_path ./results/model
+```
+
+#### CPU version (force CPU)
+
+```bash
+python main.py \
+    --validate \
+    --data_path ./dataset \
+    --data_file AUH_HepG2 \
+    --use_cpu \
     --Transformer_path ./RBPformer \
     --model_save_path ./results/model
 ```
@@ -171,12 +275,26 @@ python main.py \
 
 ### 3) Dynamic Transfer Prediction (Cross–cell-type)
 
+#### GPU version (default)
+
 ```bash
 python main.py \
     --dynamic_predict \
     --data_path ./dataset \
     --data_file AUH_HepG2 \
     --device_num 0 \
+    --Transformer_path ./RBPformer \
+    --model_save_path ./results/model
+```
+
+#### CPU version (force CPU)
+
+```bash
+python main.py \
+    --dynamic_predict \
+    --data_path ./dataset \
+    --data_file AUH_HepG2 \
+    --use_cpu \
     --Transformer_path ./RBPformer \
     --model_save_path ./results/model
 ```
@@ -195,6 +313,8 @@ python main.py \
 
 ### 4) Variant-Aware Scoring
 
+#### GPU version
+
 ```bash
 python variant_aware.py \
     --after_variation \
@@ -203,6 +323,18 @@ python variant_aware.py \
     --model_save_path ./results/model \
     --variant_out_file ./results/variants/AUH_HepG2_after_mut.txt \
     --device cuda:3
+```
+
+#### CPU version (force CPU)
+
+```bash
+python variant_aware.py \
+    --after_variation \
+    --fasta_sequence_path ./dataset_variant/AUH_HepG2.fa \
+    --Transformer_path ./RBPformer \
+    --model_save_path ./results/model \
+    --variant_out_file ./results/variants/AUH_HepG2_after_mut.txt \
+    --device cpu
 ```
 
 **Flags explained**
@@ -215,8 +347,8 @@ python variant_aware.py \
   Same as above; specify the Transformer directory and the trained BRIDGE model location.
 - `--variant_out_file`
   Output path for scored variants.
-- `--device cuda:3`
-  Explicit device string when using multiple GPUs (here GPU index 3).
+- `--device`
+  Control whether to use CPU or GPU mode.
 
 ### 5) Motif construction
 

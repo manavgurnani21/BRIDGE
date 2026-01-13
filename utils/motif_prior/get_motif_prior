@@ -189,7 +189,6 @@ while test $# -gt 0; do
                 #     echo "-bg: file should contain at least 1000 sequences"
                 #     exit 1
                 # fi
-                # TODO 我把必须1000条的限制删除了
             fi
             bgfile=$1
             shift
@@ -270,7 +269,6 @@ while test $# -gt 0; do
             # if [[ ! "$1" =~ ^[1-9][0-9]?$ ]]; then
             #     echo "-stremeP: % data used for STREME must be int > 0 & < 100"
             #     # exit 1 
-            #     # TODO: 我注释了exit 1
             # fi
             streme_perc=$1
             shift

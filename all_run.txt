@@ -1,0 +1,368 @@
+job start
+Wed 31 Dec 2025 11:47:05 AM CST
+CUDA_VISIBLE_DEVICES 0
+This job runs on the following nodes: node19
+Wed Dec 31 11:47:05 2025       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 550.54.14              Driver Version: 550.54.14      CUDA Version: 12.4     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA A40                     On  |   00000000:DC:00.0 Off |                    0 |
+|  0%   63C    P8             36W /  270W |       0MiB /  46068MiB |      0%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI        PID   Type   Process name                              GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+# conda environments:
+#
+base                     /home/wangyubo/softwares/anaconda3
+3utrbert                 /home/wangyubo/softwares/anaconda3/envs/3utrbert
+BRIDGE                *  /home/wangyubo/softwares/anaconda3/envs/BRIDGE
+BRIDGE_github2           /home/wangyubo/softwares/anaconda3/envs/BRIDGE_github2
+BRIDGE_motif             /home/wangyubo/softwares/anaconda3/envs/BRIDGE_motif
+CDUTserver               /home/wangyubo/softwares/anaconda3/envs/CDUTserver
+DHN                      /home/wangyubo/softwares/anaconda3/envs/DHN
+EDLMPPI                  /home/wangyubo/softwares/anaconda3/envs/EDLMPPI
+HDRNet                   /home/wangyubo/softwares/anaconda3/envs/HDRNet
+NT                       /home/wangyubo/softwares/anaconda3/envs/NT
+R-circos                 /home/wangyubo/softwares/anaconda3/envs/R-circos
+Reformer                 /home/wangyubo/softwares/anaconda3/envs/Reformer
+SMFM_finetune            /home/wangyubo/softwares/anaconda3/envs/SMFM_finetune
+bedtools                 /home/wangyubo/softwares/anaconda3/envs/bedtools
+bertviz                  /home/wangyubo/softwares/anaconda3/envs/bertviz
+bowtie                   /home/wangyubo/softwares/anaconda3/envs/bowtie
+bpnet-gpu                /home/wangyubo/softwares/anaconda3/envs/bpnet-gpu
+capsule                  /home/wangyubo/softwares/anaconda3/envs/capsule
+deepbind                 /home/wangyubo/softwares/anaconda3/envs/deepbind
+deepclip                 /home/wangyubo/softwares/anaconda3/envs/deepclip
+deepnanohic              /home/wangyubo/softwares/anaconda3/envs/deepnanohic
+deepripe                 /home/wangyubo/softwares/anaconda3/envs/deepripe
+deepripe_gpu             /home/wangyubo/softwares/anaconda3/envs/deepripe_gpu
+deeptools                /home/wangyubo/softwares/anaconda3/envs/deeptools
+diPaRIS_env              /home/wangyubo/softwares/anaconda3/envs/diPaRIS_env
+dmon                     /home/wangyubo/softwares/anaconda3/envs/dmon
+dnabert                  /home/wangyubo/softwares/anaconda3/envs/dnabert
+dnabert暂时改名字             /home/wangyubo/softwares/anaconda3/envs/dnabert暂时改名字
+fastaq_data              /home/wangyubo/softwares/anaconda3/envs/fastaq_data
+gp2env                   /home/wangyubo/softwares/anaconda3/envs/gp2env
+hcrnet                   /home/wangyubo/softwares/anaconda3/envs/hcrnet
+hdrnet2                  /home/wangyubo/softwares/anaconda3/envs/hdrnet2
+ideep                    /home/wangyubo/softwares/anaconda3/envs/ideep
+ideepc                   /home/wangyubo/softwares/anaconda3/envs/ideepc
+ipanemap                 /home/wangyubo/softwares/anaconda3/envs/ipanemap
+libgd                    /home/wangyubo/softwares/anaconda3/envs/libgd
+prismnet_halflife        /home/wangyubo/softwares/anaconda3/envs/prismnet_halflife
+pyGenomeTracks           /home/wangyubo/softwares/anaconda3/envs/pyGenomeTracks
+pybigwig                 /home/wangyubo/softwares/anaconda3/envs/pybigwig
+rbpnet                   /home/wangyubo/softwares/anaconda3/envs/rbpnet
+reformer                 /home/wangyubo/softwares/anaconda3/envs/reformer
+riboformer               /home/wangyubo/softwares/anaconda3/envs/riboformer
+spot_venv                /home/wangyubo/softwares/anaconda3/envs/spot_venv
+test_scagde              /home/wangyubo/softwares/anaconda3/envs/test_scagde
+trRNA                    /home/wangyubo/softwares/anaconda3/envs/trRNA
+variant                  /home/wangyubo/softwares/anaconda3/envs/variant
+viennaRNA                /home/wangyubo/softwares/anaconda3/envs/viennaRNA
+
+/home/wangyubo/softwares/anaconda3/envs/BRIDGE/lib/python3.10/site-packages/torch/_utils.py:776: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+Some weights of BertModel were not initialized from the model checkpoint at ./RBPformer and are newly initialized: ['bert.pooler.dense.bias', 'bert.pooler.dense.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+/home/wangyubo/softwares/anaconda3/envs/BRIDGE/lib/python3.10/site-packages/sklearn/metrics/_ranking.py:1179: UndefinedMetricWarning: No negative samples in y_true, false positive value should be meaningless
+  warnings.warn(
+/fs1/private/user/wangyubo/code/BRIDGE/utils/metrics.py:188: RuntimeWarning: Mean of empty slice
+  mean = [np.nanmean(correct), np.nanmean(auc_roc), np.nanmean(auc_pr), np.nanmean(f1), np.nanmean(mcc), tp, tn, fp, fn]
+/home/wangyubo/softwares/anaconda3/envs/BRIDGE/lib/python3.10/site-packages/numpy/lib/nanfunctions.py:1879: RuntimeWarning: Degrees of freedom <= 0 for slice.
+  var = nanvar(a, axis=axis, dtype=dtype, out=out, ddof=ddof,
+/home/wangyubo/softwares/anaconda3/envs/BRIDGE/lib/python3.10/site-packages/sklearn/metrics/_ranking.py:1179: UndefinedMetricWarning: No negative samples in y_true, false positive value should be meaningless
+  warnings.warn(
+/fs1/private/user/wangyubo/code/BRIDGE/utils/metrics.py:188: RuntimeWarning: Mean of empty slice
+  mean = [np.nanmean(correct), np.nanmean(auc_roc), np.nanmean(auc_pr), np.nanmean(f1), np.nanmean(mcc), tp, tn, fp, fn]
+/home/wangyubo/softwares/anaconda3/envs/BRIDGE/lib/python3.10/site-packages/numpy/lib/nanfunctions.py:1879: RuntimeWarning: Degrees of freedom <= 0 for slice.
+  var = nanvar(a, axis=axis, dtype=dtype, out=out, ddof=ddof,
+/home/wangyubo/softwares/anaconda3/envs/BRIDGE/lib/python3.10/site-packages/sklearn/metrics/_ranking.py:1179: UndefinedMetricWarning: No negative samples in y_true, false positive value should be meaningless
+  warnings.warn(
+/fs1/private/user/wangyubo/code/BRIDGE/utils/metrics.py:188: RuntimeWarning: Mean of empty slice
+  mean = [np.nanmean(correct), np.nanmean(auc_roc), np.nanmean(auc_pr), np.nanmean(f1), np.nanmean(mcc), tp, tn, fp, fn]
+/home/wangyubo/softwares/anaconda3/envs/BRIDGE/lib/python3.10/site-packages/numpy/lib/nanfunctions.py:1879: RuntimeWarning: Degrees of freedom <= 0 for slice.
+  var = nanvar(a, axis=axis, dtype=dtype, out=out, ddof=ddof,
+/home/wangyubo/softwares/anaconda3/envs/BRIDGE/lib/python3.10/site-packages/sklearn/metrics/_ranking.py:1179: UndefinedMetricWarning: No negative samples in y_true, false positive value should be meaningless
+  warnings.warn(
+/fs1/private/user/wangyubo/code/BRIDGE/utils/metrics.py:188: RuntimeWarning: Mean of empty slice
+  mean = [np.nanmean(correct), np.nanmean(auc_roc), np.nanmean(auc_pr), np.nanmean(f1), np.nanmean(mcc), tp, tn, fp, fn]
+/home/wangyubo/softwares/anaconda3/envs/BRIDGE/lib/python3.10/site-packages/numpy/lib/nanfunctions.py:1879: RuntimeWarning: Degrees of freedom <= 0 for slice.
+  var = nanvar(a, axis=axis, dtype=dtype, out=out, ddof=ddof,
+/home/wangyubo/softwares/anaconda3/envs/BRIDGE/lib/python3.10/site-packages/sklearn/metrics/_ranking.py:1179: UndefinedMetricWarning: No negative samples in y_true, false positive value should be meaningless
+  warnings.warn(
+/fs1/private/user/wangyubo/code/BRIDGE/utils/metrics.py:188: RuntimeWarning: Mean of empty slice
+  mean = [np.nanmean(correct), np.nanmean(auc_roc), np.nanmean(auc_pr), np.nanmean(f1), np.nanmean(mcc), tp, tn, fp, fn]
+/home/wangyubo/softwares/anaconda3/envs/BRIDGE/lib/python3.10/site-packages/numpy/lib/nanfunctions.py:1879: RuntimeWarning: Degrees of freedom <= 0 for slice.
+  var = nanvar(a, axis=axis, dtype=dtype, out=out, ddof=ddof,
+/home/wangyubo/softwares/anaconda3/envs/BRIDGE/lib/python3.10/site-packages/sklearn/metrics/_ranking.py:1179: UndefinedMetricWarning: No negative samples in y_true, false positive value should be meaningless
+  warnings.warn(
+/home/wangyubo/softwares/anaconda3/envs/BRIDGE/lib/python3.10/site-packages/sklearn/metrics/_classification.py:407: UserWarning: A single label was found in 'y_true' and 'y_pred'. For the confusion matrix to have the correct shape, use the 'labels' parameter to pass all known labels.
+  warnings.warn(
+/home/wangyubo/softwares/anaconda3/envs/BRIDGE/lib/python3.10/site-packages/sklearn/metrics/_classification.py:407: UserWarning: A single label was found in 'y_true' and 'y_pred'. For the confusion matrix to have the correct shape, use the 'labels' parameter to pass all known labels.
+  warnings.warn(
+/fs1/private/user/wangyubo/code/BRIDGE/utils/metrics.py:188: RuntimeWarning: Mean of empty slice
+  mean = [np.nanmean(correct), np.nanmean(auc_roc), np.nanmean(auc_pr), np.nanmean(f1), np.nanmean(mcc), tp, tn, fp, fn]
+/home/wangyubo/softwares/anaconda3/envs/BRIDGE/lib/python3.10/site-packages/numpy/lib/nanfunctions.py:1879: RuntimeWarning: Degrees of freedom <= 0 for slice.
+  var = nanvar(a, axis=axis, dtype=dtype, out=out, ddof=ddof,
+/home/wangyubo/softwares/anaconda3/envs/BRIDGE/lib/python3.10/site-packages/sklearn/metrics/_ranking.py:1179: UndefinedMetricWarning: No negative samples in y_true, false positive value should be meaningless
+  warnings.warn(
+/fs1/private/user/wangyubo/code/BRIDGE/utils/metrics.py:188: RuntimeWarning: Mean of empty slice
+  mean = [np.nanmean(correct), np.nanmean(auc_roc), np.nanmean(auc_pr), np.nanmean(f1), np.nanmean(mcc), tp, tn, fp, fn]
+/home/wangyubo/softwares/anaconda3/envs/BRIDGE/lib/python3.10/site-packages/numpy/lib/nanfunctions.py:1879: RuntimeWarning: Degrees of freedom <= 0 for slice.
+  var = nanvar(a, axis=axis, dtype=dtype, out=out, ddof=ddof,
+/home/wangyubo/softwares/anaconda3/envs/BRIDGE/lib/python3.10/site-packages/sklearn/metrics/_ranking.py:1179: UndefinedMetricWarning: No negative samples in y_true, false positive value should be meaningless
+  warnings.warn(
+/fs1/private/user/wangyubo/code/BRIDGE/utils/metrics.py:188: RuntimeWarning: Mean of empty slice
+  mean = [np.nanmean(correct), np.nanmean(auc_roc), np.nanmean(auc_pr), np.nanmean(f1), np.nanmean(mcc), tp, tn, fp, fn]
+/home/wangyubo/softwares/anaconda3/envs/BRIDGE/lib/python3.10/site-packages/numpy/lib/nanfunctions.py:1879: RuntimeWarning: Degrees of freedom <= 0 for slice.
+  var = nanvar(a, axis=axis, dtype=dtype, out=out, ddof=ddof,
+/home/wangyubo/softwares/anaconda3/envs/BRIDGE/lib/python3.10/site-packages/sklearn/metrics/_ranking.py:1179: UndefinedMetricWarning: No negative samples in y_true, false positive value should be meaningless
+  warnings.warn(
+/fs1/private/user/wangyubo/code/BRIDGE/utils/metrics.py:188: RuntimeWarning: Mean of empty slice
+  mean = [np.nanmean(correct), np.nanmean(auc_roc), np.nanmean(auc_pr), np.nanmean(f1), np.nanmean(mcc), tp, tn, fp, fn]
+/home/wangyubo/softwares/anaconda3/envs/BRIDGE/lib/python3.10/site-packages/numpy/lib/nanfunctions.py:1879: RuntimeWarning: Degrees of freedom <= 0 for slice.
+  var = nanvar(a, axis=axis, dtype=dtype, out=out, ddof=ddof,
+/home/wangyubo/softwares/anaconda3/envs/BRIDGE/lib/python3.10/site-packages/sklearn/metrics/_ranking.py:1179: UndefinedMetricWarning: No negative samples in y_true, false positive value should be meaningless
+  warnings.warn(
+/fs1/private/user/wangyubo/code/BRIDGE/utils/metrics.py:188: RuntimeWarning: Mean of empty slice
+  mean = [np.nanmean(correct), np.nanmean(auc_roc), np.nanmean(auc_pr), np.nanmean(f1), np.nanmean(mcc), tp, tn, fp, fn]
+/home/wangyubo/softwares/anaconda3/envs/BRIDGE/lib/python3.10/site-packages/numpy/lib/nanfunctions.py:1879: RuntimeWarning: Degrees of freedom <= 0 for slice.
+  var = nanvar(a, axis=axis, dtype=dtype, out=out, ddof=ddof,
+[INFO] Encoded 15002 sequences for AUH_HepG2, shape: (15002, 101, 99)
+Valid motif file detected, skipping motif_prior: utils/motif_prior/output/AUH_HepG2/output/STRME_training_set.tab
+---------------------------------
+Total params: 19111841
+Trainable params: 19111809
+Non-trainable params: 32
+---------------------------------
+AUH_HepG2 	 Train Epoch: 1     avg.loss: 0.9222 Acc: 0.66%, AUC: 0.7710, PRC: 0.6522, MCC: 0.3416, lr: 0.000040
+AUH_HepG2 	 Test  Epoch: 1     avg.loss: 0.7507 Acc: 0.75%, AUC: 0.7982 (0.7982), PRC: 0.6769, MCC: 0.4181, 1
+AUH_HepG2 	 Train Epoch: 2     avg.loss: 0.6680 Acc: 0.76%, AUC: nan, PRC: 0.7527, MCC: 0.4995, lr: 0.000080
+AUH_HepG2 	 Test  Epoch: 2     avg.loss: 0.7465 Acc: 0.77%, AUC: 0.8301 (0.8301), PRC: 0.7210, MCC: 0.4442, 2
+AUH_HepG2 	 Train Epoch: 3     avg.loss: 0.6276 Acc: 0.78%, AUC: 0.8647, PRC: 0.7750, MCC: 0.5384, lr: 0.000120
+AUH_HepG2 	 Test  Epoch: 3     avg.loss: 0.7209 Acc: 0.77%, AUC: 0.8382 (0.8382), PRC: 0.7314, MCC: 0.4589, 3
+AUH_HepG2 	 Train Epoch: 4     avg.loss: 0.6181 Acc: 0.79%, AUC: 0.8732, PRC: 0.7882, MCC: 0.5559, lr: 0.000160
+AUH_HepG2 	 Test  Epoch: 4     avg.loss: 0.7141 Acc: 0.77%, AUC: 0.8430 (0.8430), PRC: 0.7374, MCC: 0.4649, 4
+AUH_HepG2 	 Train Epoch: 5     avg.loss: 0.6072 Acc: 0.79%, AUC: 0.8790, PRC: 0.7978, MCC: 0.5699, lr: 0.000200
+AUH_HepG2 	 Test  Epoch: 5     avg.loss: 0.6664 Acc: 0.73%, AUC: 0.8411 (0.8430), PRC: 0.7415, MCC: 0.4732, 4
+AUH_HepG2 	 Train Epoch: 6     avg.loss: 0.6041 Acc: 0.79%, AUC: 0.8866, PRC: 0.8097, MCC: 0.5711, lr: 0.000240
+AUH_HepG2 	 Test  Epoch: 6     avg.loss: 0.7166 Acc: 0.78%, AUC: 0.8465 (0.8465), PRC: 0.7477, MCC: 0.4874, 6
+AUH_HepG2 	 Train Epoch: 7     avg.loss: 0.6025 Acc: 0.80%, AUC: nan, PRC: 0.8145, MCC: 0.5824, lr: 0.000280
+AUH_HepG2 	 Test  Epoch: 7     avg.loss: 0.7096 Acc: 0.79%, AUC: 0.8495 (0.8495), PRC: 0.7537, MCC: 0.4993, 7
+AUH_HepG2 	 Train Epoch: 8     avg.loss: 0.5869 Acc: 0.80%, AUC: nan, PRC: 0.8240, MCC: 0.5907, lr: 0.000320
+AUH_HepG2 	 Test  Epoch: 8     avg.loss: 0.6539 Acc: 0.77%, AUC: 0.8466 (0.8495), PRC: 0.7383, MCC: 0.5057, 7
+AUH_HepG2 	 Train Epoch: 9     avg.loss: 0.5803 Acc: 0.81%, AUC: 0.9018, PRC: 0.8281, MCC: 0.6010, lr: 0.000360
+AUH_HepG2 	 Test  Epoch: 9     avg.loss: 0.7019 Acc: 0.70%, AUC: 0.8516 (0.8516), PRC: 0.7577, MCC: 0.4721, 9
+AUH_HepG2 	 Train Epoch: 10     avg.loss: 0.5768 Acc: 0.81%, AUC: nan, PRC: 0.8420, MCC: 0.6118, lr: 0.000400
+AUH_HepG2 	 Test  Epoch: 10     avg.loss: 0.6183 Acc: 0.80%, AUC: 0.8603 (0.8603), PRC: 0.7681, MCC: 0.5501, 10
+AUH_HepG2 	 Train Epoch: 11     avg.loss: 0.5701 Acc: 0.81%, AUC: 0.9089, PRC: 0.8480, MCC: 0.6088, lr: 0.000440
+AUH_HepG2 	 Test  Epoch: 11     avg.loss: 1.0914 Acc: 0.73%, AUC: 0.8606 (0.8606), PRC: 0.7666, MCC: 0.3549, 11
+AUH_HepG2 	 Train Epoch: 12     avg.loss: 0.5658 Acc: 0.81%, AUC: 0.9163, PRC: 0.8524, MCC: 0.6224, lr: 0.000480
+AUH_HepG2 	 Test  Epoch: 12     avg.loss: 0.9090 Acc: 0.76%, AUC: 0.8649 (0.8649), PRC: 0.7727, MCC: 0.4378, 12
+AUH_HepG2 	 Train Epoch: 13     avg.loss: 0.5331 Acc: 0.82%, AUC: 0.9191, PRC: 0.8580, MCC: 0.6408, lr: 0.000520
+AUH_HepG2 	 Test  Epoch: 13     avg.loss: 0.7594 Acc: 0.78%, AUC: 0.8427 (0.8649), PRC: 0.7416, MCC: 0.4770, 12
+AUH_HepG2 	 Train Epoch: 14     avg.loss: 0.5638 Acc: 0.82%, AUC: 0.9213, PRC: 0.8639, MCC: 0.6338, lr: 0.000560
+AUH_HepG2 	 Test  Epoch: 14     avg.loss: 0.6478 Acc: 0.79%, AUC: 0.8492 (0.8649), PRC: 0.7582, MCC: 0.5310, 12
+AUH_HepG2 	 Train Epoch: 15     avg.loss: 0.5300 Acc: 0.83%, AUC: 0.9289, PRC: 0.8718, MCC: 0.6523, lr: 0.000600
+AUH_HepG2 	 Test  Epoch: 15     avg.loss: 0.6876 Acc: 0.79%, AUC: 0.8515 (0.8649), PRC: 0.7515, MCC: 0.5000, 12
+AUH_HepG2 	 Train Epoch: 16     avg.loss: 0.5208 Acc: 0.83%, AUC: 0.9305, PRC: 0.8786, MCC: 0.6580, lr: 0.000640
+AUH_HepG2 	 Test  Epoch: 16     avg.loss: 0.6524 Acc: 0.80%, AUC: 0.8616 (0.8649), PRC: 0.7668, MCC: 0.5446, 12
+AUH_HepG2 	 Train Epoch: 17     avg.loss: 0.5491 Acc: 0.83%, AUC: 0.9366, PRC: 0.8854, MCC: 0.6588, lr: 0.000680
+AUH_HepG2 	 Test  Epoch: 17     avg.loss: 0.6492 Acc: 0.79%, AUC: 0.8505 (0.8649), PRC: 0.7513, MCC: 0.5236, 12
+AUH_HepG2 	 Train Epoch: 18     avg.loss: 0.5077 Acc: 0.84%, AUC: 0.9333, PRC: 0.8808, MCC: 0.6648, lr: 0.000720
+AUH_HepG2 	 Test  Epoch: 18     avg.loss: 0.6727 Acc: 0.80%, AUC: 0.8479 (0.8649), PRC: 0.7470, MCC: 0.5294, 12
+AUH_HepG2 	 Train Epoch: 19     avg.loss: 0.5040 Acc: 0.84%, AUC: 0.9417, PRC: 0.8937, MCC: 0.6796, lr: 0.000760
+AUH_HepG2 	 Test  Epoch: 19     avg.loss: 0.6328 Acc: 0.78%, AUC: 0.8590 (0.8649), PRC: 0.7695, MCC: 0.5262, 12
+AUH_HepG2 	 Train Epoch: 20     avg.loss: 0.4527 Acc: 0.85%, AUC: 0.9469, PRC: 0.9037, MCC: 0.7011, lr: 0.000800
+AUH_HepG2 	 Test  Epoch: 20     avg.loss: 0.6510 Acc: 0.81%, AUC: 0.8640 (0.8649), PRC: 0.7724, MCC: 0.5584, 12
+AUH_HepG2 	 Train Epoch: 21     avg.loss: 0.4495 Acc: 0.86%, AUC: 0.9517, PRC: 0.9132, MCC: 0.7130, lr: 0.000840
+AUH_HepG2 	 Test  Epoch: 21     avg.loss: 0.7251 Acc: 0.80%, AUC: 0.8580 (0.8649), PRC: 0.7598, MCC: 0.5234, 12
+AUH_HepG2 	 Train Epoch: 22     avg.loss: 0.4347 Acc: 0.87%, AUC: 0.9593, PRC: 0.9225, MCC: 0.7252, lr: 0.000880
+AUH_HepG2 	 Test  Epoch: 22     avg.loss: 0.9703 Acc: 0.77%, AUC: 0.8544 (0.8649), PRC: 0.7594, MCC: 0.4642, 12
+AUH_HepG2 	 Train Epoch: 23     avg.loss: 0.4287 Acc: 0.87%, AUC: 0.9602, PRC: 0.9255, MCC: 0.7318, lr: 0.000920
+AUH_HepG2 	 Test  Epoch: 23     avg.loss: 0.6460 Acc: 0.77%, AUC: 0.8569 (0.8649), PRC: 0.7518, MCC: 0.5249, 12
+AUH_HepG2 	 Train Epoch: 24     avg.loss: 0.4061 Acc: 0.88%, AUC: 0.9635, PRC: 0.9319, MCC: 0.7454, lr: 0.000960
+AUH_HepG2 	 Test  Epoch: 24     avg.loss: 0.8105 Acc: 0.79%, AUC: 0.8370 (0.8649), PRC: 0.7255, MCC: 0.5041, 12
+AUH_HepG2 	 Train Epoch: 25     avg.loss: 0.4414 Acc: 0.87%, AUC: 0.9671, PRC: 0.9394, MCC: 0.7405, lr: 0.001000
+AUH_HepG2 	 Test  Epoch: 25     avg.loss: 0.7719 Acc: 0.81%, AUC: 0.8621 (0.8649), PRC: 0.7695, MCC: 0.5539, 12
+AUH_HepG2 	 Train Epoch: 26     avg.loss: 0.4199 Acc: 0.88%, AUC: 0.9704, PRC: 0.9459, MCC: 0.7539, lr: 0.001040
+AUH_HepG2 	 Test  Epoch: 26     avg.loss: 0.7588 Acc: 0.81%, AUC: 0.8669 (0.8669), PRC: 0.7781, MCC: 0.5488, 26
+AUH_HepG2 	 Train Epoch: 27     avg.loss: 0.3874 Acc: 0.89%, AUC: 0.9718, PRC: 0.9466, MCC: 0.7653, lr: 0.001080
+AUH_HepG2 	 Test  Epoch: 27     avg.loss: 1.9154 Acc: 0.72%, AUC: 0.8597 (0.8669), PRC: 0.7621, MCC: 0.3356, 26
+AUH_HepG2 	 Train Epoch: 28     avg.loss: 0.3704 Acc: 0.89%, AUC: 0.9754, PRC: 0.9526, MCC: 0.7780, lr: 0.001120
+AUH_HepG2 	 Test  Epoch: 28     avg.loss: 0.7891 Acc: 0.81%, AUC: 0.8740 (0.8740), PRC: 0.7902, MCC: 0.5636, 28
+AUH_HepG2 	 Train Epoch: 29     avg.loss: 0.3586 Acc: 0.90%, AUC: nan, PRC: 0.9540, MCC: 0.7974, lr: 0.001160
+AUH_HepG2 	 Test  Epoch: 29     avg.loss: 1.1221 Acc: 0.78%, AUC: 0.8630 (0.8740), PRC: 0.7701, MCC: 0.4857, 28
+AUH_HepG2 	 Train Epoch: 30     avg.loss: 0.3123 Acc: 0.91%, AUC: 0.9813, PRC: 0.9640, MCC: 0.8094, lr: 0.001200
+AUH_HepG2 	 Test  Epoch: 30     avg.loss: 0.9848 Acc: 0.79%, AUC: 0.8695 (0.8740), PRC: 0.7831, MCC: 0.5095, 28
+AUH_HepG2 	 Train Epoch: 31     avg.loss: 0.3285 Acc: 0.90%, AUC: 0.9820, PRC: 0.9661, MCC: 0.8027, lr: 0.001240
+AUH_HepG2 	 Test  Epoch: 31     avg.loss: 1.7347 Acc: 0.75%, AUC: 0.8624 (0.8740), PRC: 0.7663, MCC: 0.4087, 28
+AUH_HepG2 	 Train Epoch: 32     avg.loss: 0.2889 Acc: 0.92%, AUC: 0.9863, PRC: 0.9725, MCC: 0.8352, lr: 0.001280
+AUH_HepG2 	 Test  Epoch: 32     avg.loss: 1.1544 Acc: 0.80%, AUC: 0.8646 (0.8740), PRC: 0.7738, MCC: 0.5278, 28
+AUH_HepG2 	 Train Epoch: 33     avg.loss: 0.2971 Acc: 0.92%, AUC: nan, PRC: 0.9715, MCC: 0.8239, lr: 0.001320
+AUH_HepG2 	 Test  Epoch: 33     avg.loss: 0.7443 Acc: 0.75%, AUC: 0.8736 (0.8740), PRC: 0.7860, MCC: 0.5213, 28
+AUH_HepG2 	 Train Epoch: 34     avg.loss: 0.3092 Acc: 0.91%, AUC: 0.9854, PRC: 0.9727, MCC: 0.8267, lr: 0.001360
+AUH_HepG2 	 Test  Epoch: 34     avg.loss: 0.8197 Acc: 0.80%, AUC: 0.8622 (0.8740), PRC: 0.7678, MCC: 0.5470, 28
+AUH_HepG2 	 Train Epoch: 35     avg.loss: 0.2759 Acc: 0.93%, AUC: 0.9881, PRC: 0.9759, MCC: 0.8506, lr: 0.001400
+AUH_HepG2 	 Test  Epoch: 35     avg.loss: 0.6951 Acc: 0.81%, AUC: 0.8804 (0.8804), PRC: 0.8044, MCC: 0.5869, 35
+AUH_HepG2 	 Train Epoch: 36     avg.loss: 0.2732 Acc: 0.93%, AUC: 0.9900, PRC: 0.9802, MCC: 0.8554, lr: 0.001440
+AUH_HepG2 	 Test  Epoch: 36     avg.loss: 1.1621 Acc: 0.80%, AUC: 0.8597 (0.8804), PRC: 0.7698, MCC: 0.5286, 35
+AUH_HepG2 	 Train Epoch: 37     avg.loss: 0.2591 Acc: 0.93%, AUC: 0.9903, PRC: 0.9804, MCC: 0.8517, lr: 0.001480
+AUH_HepG2 	 Test  Epoch: 37     avg.loss: 0.8406 Acc: 0.81%, AUC: 0.8733 (0.8804), PRC: 0.7917, MCC: 0.5738, 35
+AUH_HepG2 	 Train Epoch: 38     avg.loss: 0.2399 Acc: 0.94%, AUC: 0.9915, PRC: 0.9846, MCC: 0.8663, lr: 0.001520
+AUH_HepG2 	 Test  Epoch: 38     avg.loss: 1.7997 Acc: 0.78%, AUC: 0.8742 (0.8804), PRC: 0.7911, MCC: 0.4770, 35
+AUH_HepG2 	 Train Epoch: 39     avg.loss: 0.2279 Acc: 0.94%, AUC: 0.9923, PRC: 0.9847, MCC: 0.8697, lr: 0.001560
+AUH_HepG2 	 Test  Epoch: 39     avg.loss: 0.8597 Acc: 0.82%, AUC: 0.8741 (0.8804), PRC: 0.7943, MCC: 0.5954, 35
+AUH_HepG2 	 Train Epoch: 40     avg.loss: 0.2441 Acc: 0.94%, AUC: 0.9931, PRC: 0.9870, MCC: 0.8689, lr: 0.001600
+AUH_HepG2 	 Test  Epoch: 40     avg.loss: 1.0524 Acc: 0.82%, AUC: 0.8766 (0.8804), PRC: 0.7951, MCC: 0.5804, 35
+AUH_HepG2 	 Train Epoch: 41     avg.loss: 0.2197 Acc: 0.94%, AUC: 0.9918, PRC: 0.9848, MCC: 0.8815, lr: 0.001600
+AUH_HepG2 	 Test  Epoch: 41     avg.loss: 0.7782 Acc: 0.81%, AUC: 0.8774 (0.8804), PRC: 0.7977, MCC: 0.5774, 35
+AUH_HepG2 	 Train Epoch: 42     avg.loss: 0.2085 Acc: 0.95%, AUC: 0.9938, PRC: 0.9879, MCC: 0.8828, lr: 0.001600
+AUH_HepG2 	 Test  Epoch: 42     avg.loss: 0.8127 Acc: 0.78%, AUC: 0.8759 (0.8804), PRC: 0.7933, MCC: 0.5483, 35
+AUH_HepG2 	 Train Epoch: 43     avg.loss: 0.2198 Acc: 0.94%, AUC: 0.9934, PRC: 0.9869, MCC: 0.8756, lr: 0.001600
+AUH_HepG2 	 Test  Epoch: 43     avg.loss: 1.1924 Acc: 0.82%, AUC: 0.8678 (0.8804), PRC: 0.7934, MCC: 0.5790, 35
+AUH_HepG2 	 Train Epoch: 44     avg.loss: 0.1833 Acc: 0.95%, AUC: 0.9957, PRC: 0.9917, MCC: 0.8982, lr: 0.001600
+AUH_HepG2 	 Test  Epoch: 44     avg.loss: 0.9421 Acc: 0.78%, AUC: 0.8793 (0.8804), PRC: 0.7975, MCC: 0.5553, 35
+AUH_HepG2 	 Train Epoch: 45     avg.loss: 0.1492 Acc: 0.96%, AUC: 0.9974, PRC: 0.9952, MCC: 0.9137, lr: 0.001280
+AUH_HepG2 	 Test  Epoch: 45     avg.loss: 1.8914 Acc: 0.80%, AUC: 0.8684 (0.8804), PRC: 0.7864, MCC: 0.5187, 35
+AUH_HepG2 	 Train Epoch: 46     avg.loss: 0.1238 Acc: 0.97%, AUC: 0.9987, PRC: 0.9974, MCC: 0.9297, lr: 0.001280
+AUH_HepG2 	 Test  Epoch: 46     avg.loss: 1.6160 Acc: 0.80%, AUC: 0.8780 (0.8804), PRC: 0.7991, MCC: 0.5364, 35
+AUH_HepG2 	 Train Epoch: 47     avg.loss: 0.1212 Acc: 0.97%, AUC: nan, PRC: 0.9979, MCC: 0.9371, lr: 0.001280
+AUH_HepG2 	 Test  Epoch: 47     avg.loss: 1.5473 Acc: 0.82%, AUC: 0.8751 (0.8804), PRC: 0.7945, MCC: 0.5715, 35
+AUH_HepG2 	 Train Epoch: 48     avg.loss: 0.1264 Acc: 0.97%, AUC: 0.9983, PRC: 0.9967, MCC: 0.9316, lr: 0.001280
+AUH_HepG2 	 Test  Epoch: 48     avg.loss: 1.3691 Acc: 0.81%, AUC: 0.8715 (0.8804), PRC: 0.7936, MCC: 0.5570, 35
+AUH_HepG2 	 Train Epoch: 49     avg.loss: 0.0886 Acc: 0.98%, AUC: 0.9988, PRC: 0.9975, MCC: 0.9504, lr: 0.001280
+AUH_HepG2 	 Test  Epoch: 49     avg.loss: 1.0438 Acc: 0.82%, AUC: 0.8816 (0.8816), PRC: 0.8039, MCC: 0.5902, 49
+AUH_HepG2 	 Train Epoch: 50     avg.loss: 0.0970 Acc: 0.97%, AUC: 0.9989, PRC: 0.9980, MCC: 0.9438, lr: 0.001024
+AUH_HepG2 	 Test  Epoch: 50     avg.loss: 1.6098 Acc: 0.82%, AUC: 0.8842 (0.8842), PRC: 0.8093, MCC: 0.5680, 50
+AUH_HepG2 	 Train Epoch: 51     avg.loss: 0.0936 Acc: 0.98%, AUC: 0.9991, PRC: 0.9981, MCC: 0.9459, lr: 0.001024
+AUH_HepG2 	 Test  Epoch: 51     avg.loss: 1.5941 Acc: 0.83%, AUC: 0.8942 (0.8942), PRC: 0.8266, MCC: 0.5946, 51
+AUH_HepG2 	 Train Epoch: 52     avg.loss: 0.0669 Acc: 0.98%, AUC: 0.9995, PRC: 0.9990, MCC: 0.9606, lr: 0.001024
+AUH_HepG2 	 Test  Epoch: 52     avg.loss: 1.4971 Acc: 0.82%, AUC: 0.8873 (0.8942), PRC: 0.8154, MCC: 0.5877, 51
+AUH_HepG2 	 Train Epoch: 53     avg.loss: 0.0611 Acc: 0.99%, AUC: 0.9997, PRC: 0.9994, MCC: 0.9659, lr: 0.001024
+AUH_HepG2 	 Test  Epoch: 53     avg.loss: 1.6831 Acc: 0.82%, AUC: 0.8886 (0.8942), PRC: 0.8170, MCC: 0.5777, 51
+AUH_HepG2 	 Train Epoch: 54     avg.loss: 0.0608 Acc: 0.98%, AUC: 0.9998, PRC: 0.9997, MCC: 0.9661, lr: 0.001024
+AUH_HepG2 	 Test  Epoch: 54     avg.loss: 1.0947 Acc: 0.81%, AUC: 0.8868 (0.8942), PRC: 0.8136, MCC: 0.5893, 51
+AUH_HepG2 	 Train Epoch: 55     avg.loss: 0.0688 Acc: 0.98%, AUC: 0.9995, PRC: 0.9988, MCC: 0.9637, lr: 0.000819
+AUH_HepG2 	 Test  Epoch: 55     avg.loss: 1.2520 Acc: 0.83%, AUC: 0.8855 (0.8942), PRC: 0.8105, MCC: 0.6011, 51
+AUH_HepG2 	 Train Epoch: 56     avg.loss: 0.0355 Acc: 0.99%, AUC: 0.9998, PRC: 0.9995, MCC: 0.9784, lr: 0.000819
+AUH_HepG2 	 Test  Epoch: 56     avg.loss: 1.5597 Acc: 0.83%, AUC: 0.8904 (0.8942), PRC: 0.8255, MCC: 0.6118, 51
+AUH_HepG2 	 Train Epoch: 57     avg.loss: 0.0392 Acc: 0.99%, AUC: 0.9999, PRC: 0.9998, MCC: 0.9775, lr: 0.000819
+AUH_HepG2 	 Test  Epoch: 57     avg.loss: 1.5507 Acc: 0.84%, AUC: 0.8916 (0.8942), PRC: 0.8247, MCC: 0.6227, 51
+AUH_HepG2 	 Train Epoch: 58     avg.loss: 0.0434 Acc: 0.99%, AUC: 0.9999, PRC: 0.9998, MCC: 0.9746, lr: 0.000819
+AUH_HepG2 	 Test  Epoch: 58     avg.loss: 1.4428 Acc: 0.82%, AUC: 0.8866 (0.8942), PRC: 0.8201, MCC: 0.5975, 51
+AUH_HepG2 	 Train Epoch: 59     avg.loss: 0.0465 Acc: 0.99%, AUC: 0.9997, PRC: 0.9994, MCC: 0.9735, lr: 0.000819
+AUH_HepG2 	 Test  Epoch: 59     avg.loss: 2.4737 Acc: 0.82%, AUC: 0.8886 (0.8942), PRC: 0.8247, MCC: 0.5786, 51
+AUH_HepG2 	 Train Epoch: 60     avg.loss: 0.0460 Acc: 0.99%, AUC: 0.9997, PRC: 0.9994, MCC: 0.9726, lr: 0.000655
+AUH_HepG2 	 Test  Epoch: 60     avg.loss: 1.7074 Acc: 0.83%, AUC: 0.8908 (0.8942), PRC: 0.8267, MCC: 0.6167, 51
+AUH_HepG2 	 Train Epoch: 61     avg.loss: 0.0372 Acc: 0.99%, AUC: 0.9999, PRC: 0.9997, MCC: 0.9781, lr: 0.000655
+AUH_HepG2 	 Test  Epoch: 61     avg.loss: 1.5928 Acc: 0.83%, AUC: 0.8889 (0.8942), PRC: 0.8249, MCC: 0.6092, 51
+AUH_HepG2 	 Train Epoch: 62     avg.loss: 0.0261 Acc: 0.99%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9851, lr: 0.000655
+AUH_HepG2 	 Test  Epoch: 62     avg.loss: 1.6935 Acc: 0.83%, AUC: 0.8932 (0.8942), PRC: 0.8257, MCC: 0.6119, 51
+AUH_HepG2 	 Train Epoch: 63     avg.loss: 0.0263 Acc: 0.99%, AUC: 1.0000, PRC: 0.9999, MCC: 0.9840, lr: 0.000655
+AUH_HepG2 	 Test  Epoch: 63     avg.loss: 1.9116 Acc: 0.84%, AUC: 0.8891 (0.8942), PRC: 0.8253, MCC: 0.6238, 51
+AUH_HepG2 	 Train Epoch: 64     avg.loss: 0.0298 Acc: 0.99%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9802, lr: 0.000655
+AUH_HepG2 	 Test  Epoch: 64     avg.loss: 1.7660 Acc: 0.83%, AUC: 0.8885 (0.8942), PRC: 0.8187, MCC: 0.5985, 51
+AUH_HepG2 	 Train Epoch: 65     avg.loss: 0.0244 Acc: 0.99%, AUC: 0.9999, PRC: 0.9998, MCC: 0.9832, lr: 0.000524
+AUH_HepG2 	 Test  Epoch: 65     avg.loss: 1.7304 Acc: 0.83%, AUC: 0.8932 (0.8942), PRC: 0.8233, MCC: 0.6125, 51
+AUH_HepG2 	 Train Epoch: 66     avg.loss: 0.0178 Acc: 1.00%, AUC: 1.0000, PRC: 0.9999, MCC: 0.9890, lr: 0.000524
+AUH_HepG2 	 Test  Epoch: 66     avg.loss: 1.5536 Acc: 0.83%, AUC: 0.8940 (0.8942), PRC: 0.8282, MCC: 0.6171, 51
+AUH_HepG2 	 Train Epoch: 67     avg.loss: 0.0212 Acc: 0.99%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9876, lr: 0.000524
+AUH_HepG2 	 Test  Epoch: 67     avg.loss: 1.5354 Acc: 0.84%, AUC: 0.8962 (0.8962), PRC: 0.8311, MCC: 0.6249, 67
+AUH_HepG2 	 Train Epoch: 68     avg.loss: 0.0176 Acc: 1.00%, AUC: 1.0000, PRC: 0.9999, MCC: 0.9896, lr: 0.000524
+AUH_HepG2 	 Test  Epoch: 68     avg.loss: 2.1924 Acc: 0.83%, AUC: 0.8960 (0.8962), PRC: 0.8317, MCC: 0.6153, 67
+AUH_HepG2 	 Train Epoch: 69     avg.loss: 0.0205 Acc: 1.00%, AUC: 1.0000, PRC: 0.9999, MCC: 0.9889, lr: 0.000524
+AUH_HepG2 	 Test  Epoch: 69     avg.loss: 1.4794 Acc: 0.83%, AUC: 0.8932 (0.8962), PRC: 0.8269, MCC: 0.6159, 67
+AUH_HepG2 	 Train Epoch: 70     avg.loss: 0.0203 Acc: 0.99%, AUC: 1.0000, PRC: 0.9999, MCC: 0.9883, lr: 0.000419
+AUH_HepG2 	 Test  Epoch: 70     avg.loss: 2.0010 Acc: 0.84%, AUC: 0.8937 (0.8962), PRC: 0.8286, MCC: 0.6312, 67
+AUH_HepG2 	 Train Epoch: 71     avg.loss: 0.0162 Acc: 1.00%, AUC: 1.0000, PRC: 0.9999, MCC: 0.9901, lr: 0.000419
+AUH_HepG2 	 Test  Epoch: 71     avg.loss: 1.7020 Acc: 0.84%, AUC: 0.8904 (0.8962), PRC: 0.8232, MCC: 0.6201, 67
+AUH_HepG2 	 Train Epoch: 72     avg.loss: 0.0089 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9936, lr: 0.000419
+AUH_HepG2 	 Test  Epoch: 72     avg.loss: 1.9293 Acc: 0.84%, AUC: 0.8942 (0.8962), PRC: 0.8263, MCC: 0.6291, 67
+AUH_HepG2 	 Train Epoch: 73     avg.loss: 0.0120 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9924, lr: 0.000419
+AUH_HepG2 	 Test  Epoch: 73     avg.loss: 2.3810 Acc: 0.83%, AUC: 0.8939 (0.8962), PRC: 0.8285, MCC: 0.6122, 67
+AUH_HepG2 	 Train Epoch: 74     avg.loss: 0.0143 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9912, lr: 0.000419
+AUH_HepG2 	 Test  Epoch: 74     avg.loss: 1.8020 Acc: 0.84%, AUC: 0.8974 (0.8974), PRC: 0.8332, MCC: 0.6316, 74
+AUH_HepG2 	 Train Epoch: 75     avg.loss: 0.0357 Acc: 0.99%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9883, lr: 0.000336
+AUH_HepG2 	 Test  Epoch: 75     avg.loss: 1.7055 Acc: 0.84%, AUC: 0.8980 (0.8980), PRC: 0.8344, MCC: 0.6289, 75
+AUH_HepG2 	 Train Epoch: 76     avg.loss: 0.0102 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9937, lr: 0.000336
+AUH_HepG2 	 Test  Epoch: 76     avg.loss: 1.6517 Acc: 0.84%, AUC: 0.8959 (0.8980), PRC: 0.8325, MCC: 0.6335, 75
+AUH_HepG2 	 Train Epoch: 77     avg.loss: 0.0093 Acc: 1.00%, AUC: 1.0000, PRC: 0.9999, MCC: 0.9938, lr: 0.000336
+AUH_HepG2 	 Test  Epoch: 77     avg.loss: 1.6547 Acc: 0.84%, AUC: 0.8964 (0.8980), PRC: 0.8349, MCC: 0.6215, 75
+AUH_HepG2 	 Train Epoch: 78     avg.loss: 0.0140 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9934, lr: 0.000336
+AUH_HepG2 	 Test  Epoch: 78     avg.loss: 2.5687 Acc: 0.82%, AUC: 0.8946 (0.8980), PRC: 0.8311, MCC: 0.5888, 75
+AUH_HepG2 	 Train Epoch: 79     avg.loss: 0.0131 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9913, lr: 0.000336
+AUH_HepG2 	 Test  Epoch: 79     avg.loss: 2.0788 Acc: 0.83%, AUC: 0.8968 (0.8980), PRC: 0.8304, MCC: 0.6034, 75
+AUH_HepG2 	 Train Epoch: 80     avg.loss: 0.0064 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9962, lr: 0.000268
+AUH_HepG2 	 Test  Epoch: 80     avg.loss: 1.6913 Acc: 0.84%, AUC: 0.8977 (0.8980), PRC: 0.8344, MCC: 0.6294, 75
+AUH_HepG2 	 Train Epoch: 81     avg.loss: 0.0085 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9957, lr: 0.000268
+AUH_HepG2 	 Test  Epoch: 81     avg.loss: 2.3233 Acc: 0.83%, AUC: 0.8949 (0.8980), PRC: 0.8283, MCC: 0.5980, 75
+AUH_HepG2 	 Train Epoch: 82     avg.loss: 0.0055 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9969, lr: 0.000268
+AUH_HepG2 	 Test  Epoch: 82     avg.loss: 2.0286 Acc: 0.84%, AUC: 0.8968 (0.8980), PRC: 0.8311, MCC: 0.6217, 75
+AUH_HepG2 	 Train Epoch: 83     avg.loss: 0.0263 Acc: 1.00%, AUC: nan, PRC: 1.0000, MCC: 0.9937, lr: 0.000268
+AUH_HepG2 	 Test  Epoch: 83     avg.loss: 2.5050 Acc: 0.83%, AUC: 0.8982 (0.8982), PRC: 0.8349, MCC: 0.6079, 83
+AUH_HepG2 	 Train Epoch: 84     avg.loss: 0.0051 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9965, lr: 0.000268
+AUH_HepG2 	 Test  Epoch: 84     avg.loss: 2.3053 Acc: 0.84%, AUC: 0.8986 (0.8986), PRC: 0.8348, MCC: 0.6191, 84
+AUH_HepG2 	 Train Epoch: 85     avg.loss: 0.0046 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9972, lr: 0.000215
+AUH_HepG2 	 Test  Epoch: 85     avg.loss: 2.3435 Acc: 0.83%, AUC: 0.8958 (0.8986), PRC: 0.8321, MCC: 0.5978, 84
+AUH_HepG2 	 Train Epoch: 86     avg.loss: 0.0041 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9978, lr: 0.000215
+AUH_HepG2 	 Test  Epoch: 86     avg.loss: 2.4502 Acc: 0.83%, AUC: 0.8991 (0.8991), PRC: 0.8367, MCC: 0.6095, 86
+AUH_HepG2 	 Train Epoch: 87     avg.loss: 0.0054 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9964, lr: 0.000215
+AUH_HepG2 	 Test  Epoch: 87     avg.loss: 2.2590 Acc: 0.84%, AUC: 0.8998 (0.8998), PRC: 0.8389, MCC: 0.6218, 87
+AUH_HepG2 	 Train Epoch: 88     avg.loss: 0.0043 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9971, lr: 0.000215
+AUH_HepG2 	 Test  Epoch: 88     avg.loss: 2.5638 Acc: 0.83%, AUC: 0.8978 (0.8998), PRC: 0.8367, MCC: 0.6040, 87
+AUH_HepG2 	 Train Epoch: 89     avg.loss: 0.0041 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9970, lr: 0.000215
+AUH_HepG2 	 Test  Epoch: 89     avg.loss: 2.5160 Acc: 0.83%, AUC: 0.8988 (0.8998), PRC: 0.8390, MCC: 0.6121, 87
+AUH_HepG2 	 Train Epoch: 90     avg.loss: 0.0786 Acc: 1.00%, AUC: nan, PRC: 1.0000, MCC: 0.9949, lr: 0.000172
+AUH_HepG2 	 Test  Epoch: 90     avg.loss: 3.4866 Acc: 0.82%, AUC: 0.8978 (0.8998), PRC: 0.8376, MCC: 0.5819, 87
+AUH_HepG2 	 Train Epoch: 91     avg.loss: 0.0051 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9967, lr: 0.000172
+AUH_HepG2 	 Test  Epoch: 91     avg.loss: 2.3702 Acc: 0.84%, AUC: 0.8959 (0.8998), PRC: 0.8352, MCC: 0.6181, 87
+AUH_HepG2 	 Train Epoch: 92     avg.loss: 0.0058 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9969, lr: 0.000172
+AUH_HepG2 	 Test  Epoch: 92     avg.loss: 2.4463 Acc: 0.83%, AUC: 0.8962 (0.8998), PRC: 0.8347, MCC: 0.6118, 87
+AUH_HepG2 	 Train Epoch: 93     avg.loss: 0.0050 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9976, lr: 0.000172
+AUH_HepG2 	 Test  Epoch: 93     avg.loss: 2.1823 Acc: 0.84%, AUC: 0.8995 (0.8998), PRC: 0.8380, MCC: 0.6222, 87
+AUH_HepG2 	 Train Epoch: 94     avg.loss: 0.0012 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9990, lr: 0.000172
+AUH_HepG2 	 Test  Epoch: 94     avg.loss: 2.3487 Acc: 0.83%, AUC: 0.8991 (0.8998), PRC: 0.8382, MCC: 0.6149, 87
+AUH_HepG2 	 Train Epoch: 95     avg.loss: 0.0571 Acc: 1.00%, AUC: nan, PRC: 1.0000, MCC: 0.9960, lr: 0.000137
+AUH_HepG2 	 Test  Epoch: 95     avg.loss: 2.7082 Acc: 0.83%, AUC: 0.8992 (0.8998), PRC: 0.8390, MCC: 0.6117, 87
+AUH_HepG2 	 Train Epoch: 96     avg.loss: 0.0036 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9979, lr: 0.000137
+AUH_HepG2 	 Test  Epoch: 96     avg.loss: 2.3998 Acc: 0.84%, AUC: 0.8971 (0.8998), PRC: 0.8372, MCC: 0.6198, 87
+AUH_HepG2 	 Train Epoch: 97     avg.loss: 0.0031 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9993, lr: 0.000137
+AUH_HepG2 	 Test  Epoch: 97     avg.loss: 3.0177 Acc: 0.83%, AUC: 0.8959 (0.8998), PRC: 0.8351, MCC: 0.6013, 87
+AUH_HepG2 	 Train Epoch: 98     avg.loss: 0.0047 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9978, lr: 0.000137
+AUH_HepG2 	 Test  Epoch: 98     avg.loss: 2.4923 Acc: 0.83%, AUC: 0.8982 (0.8998), PRC: 0.8363, MCC: 0.6108, 87
+AUH_HepG2 	 Train Epoch: 99     avg.loss: 0.0017 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9994, lr: 0.000137
+AUH_HepG2 	 Test  Epoch: 99     avg.loss: 2.2663 Acc: 0.84%, AUC: 0.8976 (0.8998), PRC: 0.8366, MCC: 0.6238, 87
+AUH_HepG2 	 Train Epoch: 100     avg.loss: 0.0093 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9951, lr: 0.000110
+AUH_HepG2 	 Test  Epoch: 100     avg.loss: 2.4367 Acc: 0.84%, AUC: 0.8985 (0.8998), PRC: 0.8376, MCC: 0.6182, 87
+AUH_HepG2 	 Train Epoch: 101     avg.loss: 0.0028 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9985, lr: 0.000110
+AUH_HepG2 	 Test  Epoch: 101     avg.loss: 2.4693 Acc: 0.83%, AUC: 0.8986 (0.8998), PRC: 0.8362, MCC: 0.6126, 87
+AUH_HepG2 	 Train Epoch: 102     avg.loss: 0.0028 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9988, lr: 0.000110
+AUH_HepG2 	 Test  Epoch: 102     avg.loss: 2.4440 Acc: 0.83%, AUC: 0.8965 (0.8998), PRC: 0.8336, MCC: 0.6100, 87
+AUH_HepG2 	 Train Epoch: 103     avg.loss: 0.0031 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9979, lr: 0.000110
+AUH_HepG2 	 Test  Epoch: 103     avg.loss: 2.4027 Acc: 0.84%, AUC: 0.8974 (0.8998), PRC: 0.8374, MCC: 0.6287, 87
+AUH_HepG2 	 Train Epoch: 104     avg.loss: 0.0016 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9988, lr: 0.000110
+AUH_HepG2 	 Test  Epoch: 104     avg.loss: 2.6406 Acc: 0.84%, AUC: 0.8974 (0.8998), PRC: 0.8356, MCC: 0.6195, 87
+AUH_HepG2 	 Train Epoch: 105     avg.loss: 0.0022 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9979, lr: 0.000088
+AUH_HepG2 	 Test  Epoch: 105     avg.loss: 2.5172 Acc: 0.84%, AUC: 0.8979 (0.8998), PRC: 0.8364, MCC: 0.6224, 87
+AUH_HepG2 	 Train Epoch: 106     avg.loss: 0.0017 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9990, lr: 0.000088
+AUH_HepG2 	 Test  Epoch: 106     avg.loss: 2.6262 Acc: 0.83%, AUC: 0.8979 (0.8998), PRC: 0.8372, MCC: 0.6166, 87
+AUH_HepG2 	 Train Epoch: 107     avg.loss: 0.0024 Acc: 1.00%, AUC: 1.0000, PRC: 1.0000, MCC: 0.9986, lr: 0.000088
+AUH_HepG2 	 Test  Epoch: 107     avg.loss: 2.5100 Acc: 0.84%, AUC: 0.8966 (0.8998), PRC: 0.8363, MCC: 0.6198, 87
+Early stop at 108, BRIDGE 
+AUH_HepG2 auc: 0.8998 acc: 0.8370 prc: 0.8389 mcc: 0.6218
+Time cost: 26.99 min
+Job completed successfully.
+Wed 31 Dec 2025 12:15:06 PM CST

@@ -1,0 +1,11 @@
+MEME version 5
+ALPHABET= ACGU
+Background letter frequencies:A 0.25 C 0.25 G 0.25 U 0.25
+MOTIF SAP-49.6.145_9163526.pfm
+letter-probability matrix: alength= 4 w= 6
+0.01 0.01 0.73 0.25
+0.01 0.25 0.01 0.73
+0.01 0.01 0.97 0.01
+0.01 0.01 0.01 0.97
+0.01 0.01 0.97 0.01
+0.97 0.01 0.01 0.01

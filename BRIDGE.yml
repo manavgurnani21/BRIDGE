@@ -99,6 +99,7 @@ dependencies:
   - zeromq=4.3.5=h3b0a872_7
   - zipp=3.21.0=pyhd8ed1ab_1
   - zstandard=0.23.0=py310ha75aee5_2
+  - matplotlib=3.7  # solve matplotlib conflict
   - pip:
       - absl-py==2.1.0
       - accelerate==1.3.0
@@ -153,7 +154,7 @@ dependencies:
       - markdown==3.7
       - markdown-it-py==3.0.0
       - markupsafe==3.0.2
-      - matplotlib==3.4.1
+      # - matplotlib==3.4.1  # conflict
       - mdurl==0.1.2
       - ml-dtypes==0.4.1
       - mpmath==1.3.0
