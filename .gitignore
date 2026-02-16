@@ -27,8 +27,6 @@ Thumbs.db
 /tutorials/
 /dataset_motif1mer/
 /dataset_variant/
-/RBPformer/
-*.log
 *.tmp
 
 # --- Figures ---
@@ -46,3 +44,7 @@ reproducibility/
 !results/logs/
 !results/metrics/
 !results/model/
+
+!/results/logs/**
+!/results/metrics/**
+!/results/model/**
