@@ -1,0 +1,18 @@
+CALLED FROM: /home/wangyubo/code/BRIDGE
+fg /tmp/tmpe2jpslk7
+bg /tmp/tmp213_2z1l
+o utils/motif_prior/out/TIA1_HepG2
+f5 
+f3 
+t 37
+alph 1,2,3,5,6,7
+N 1
+stremeP 100
+logregP 0
+testP 0
+minw 4
+maxw 6
+maxAmotifs 40
+scoreN 4
+predLoss 10
+noCleanup TRUE

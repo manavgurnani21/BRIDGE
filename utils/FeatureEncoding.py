@@ -260,8 +260,7 @@ def dpcp(seq):
 
 
 def nd(seq, seq_length):
-    """
-    Compute cumulative nucleotide density (ND) per position.
+    """Compute cumulative nucleotide density (ND) per position.
 
     For each position j, ND is defined as:
         count(seq[j] in seq[0:j+1]) / (j+1)
@@ -296,30 +295,29 @@ def nd(seq, seq_length):
 
 
 def dealwithdata(protein):
-    """
-    Batch-encode biochemical and k-mer features from paired FASTA files.
+    """Batch-encode biochemical and k-mer features from paired FASTA files.
 
     This function reads:
-        ./dataset/{protein}_pos.fa
-        ./dataset/{protein}_neg.fa
+        - ./dataset/{protein}_pos.fa
+        - ./dataset/{protein}_neg.fa
     and encodes each sequence into a fixed-length feature tensor.
 
-    FASTA ASSUMPTION
-    ---------------
+    Notes
+    -----
+    **FASTA assumption**
     The input FASTA is assumed to be organized in blocks of 3 lines per record:
-        line i   : header
-        line i+1 : sequence
-        line i+2 : (optional/unused, e.g., structure or blank)
+        - line i   : header
+        - line i+1 : sequence
+        - line i+2 : (optional/unused, e.g., structure or blank)
     This function uses only the sequence line (i+1).
 
-    Output features (concatenated along the last axis)
-    --------------------------------------------------
-    - 3-dim base encoding with padding indicator (processFastaFile): (101, 3)
-    - 1-dim nucleotide density ND (nd): (101, 1)
-    - 11-dim dinucleotide physicochemical properties DPCP (dpcp): (101, 11)
-    - k-mer frequency tensors for k=1,2,3 (coden): (101, 4 + 16 + 64)
+    **Output features** (concatenated along the last axis; length = 101)
+        - 3-dim base encoding with padding indicator (processFastaFile): (101, 3)
+        - 1-dim nucleotide density ND (nd): (101, 1)
+        - 11-dim dinucleotide physicochemical properties DPCP (dpcp): (101, 11)
+        - k-mer frequency tensors for k=1,2,3 (coden): (101, 4 + 16 + 64)
 
-    Final output shape: (N, 101, F), where F = 3 + 1 + 11 + (4+16+64) = 99.
+        Final per-sequence shape: (101, 99); batch output: (N, 101, 99).
 
     Parameters
     ----------

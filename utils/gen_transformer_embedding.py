@@ -4,15 +4,25 @@ import torch
 import torch.utils.data
 from transformers import BertTokenizer, BertModel
 
-def seq2kmer(seq, k):
-    """Convert a nucleotide sequence into overlapping k-mers separated by spaces.
+def seq2kmer(seq: str, k: int) -> str:
+    """
+    Convert a nucleotide sequence into overlapping k-mers separated by spaces.
 
-    Args:
-        seq (str): Raw nucleotide sequence.
-        k (int): Length of each k-mer.
+    Tutorial note:
+        This function converts a raw RNA/DNA string into a whitespace-delimited token string,
+        so that each k-mer is treated as a "token" by the tokenizer.
 
-    Returns:
-        str: String of k-mers separated by a single space.
+    Input:
+        seq (str): Raw nucleotide sequence, e.g. "ACGT..." or "AUGC...".
+        k (int): k-mer length.
+
+    Output:
+        str: Space-separated k-mers.
+             Example: seq="ACGT", k=2 -> "AC CG GT"
+
+    Token length:
+        If the raw sequence length is S, the number of k-mers is (S - k + 1).
+        Downstream modules often assume all sequences end up with the same token length L.
     """
     seq_length = len(seq)
     
@@ -24,18 +34,39 @@ def seq2kmer(seq, k):
     return kmers
 
 
-def rbpformer_encode_batch(dataloader, model, tokenizer, device):
-    """Run RBPformer inference on a dataloader of tokenized sequences.
+def rbpformer_encode_batch(
+    dataloader: torch.utils.data.DataLoader,
+    model: BertModel,
+    tokenizer: BertTokenizer,
+    device: torch.device
+):
+    """
+    Run Transformer inference over batches of k-mer token strings.
 
-    Args:
-        dataloader (DataLoader): Iterable of k-mer-formatted sequences.
-        model: Pre-loaded RBPformer model.
-        tokenizer: Corresponding tokenizer.
-        device (torch.device): CUDA / CPU device for inference.
+    What this produces:
+        - Token-level embeddings per sequence (after removing special tokens).
+        - Attention weights per sequence (returned by the model and post-processed here),
+          intended to be usable as an adjacency signal.
 
-    Returns:
-        Tuple[List[np.ndarray], List[np.ndarray]]: Lists containing per-sequence
-            token embeddings and attentions, respectively.
+    Inputs:
+        dataloader:
+            Yields batches of sequences, where each element is a whitespace-delimited k-mer string.
+            Example element: "AC CG GT ..."
+
+        model/tokenizer:
+            Must be compatible with the k-mer vocabulary used to tokenize the sequences.
+
+        device:
+            torch.device("cuda") or torch.device("cpu")
+
+    Outputs:
+        features: List[np.ndarray]
+            Each item is a token embedding matrix of shape (L_i, C)
+            where L_i is the number of valid tokens for that sequence (excluding special tokens)
+            and C is the model hidden size.
+
+        attn_adj: List[np.ndarray]
+            Each item is an attention-derived matrix associated with the sequence tokens.
     """
     features = []
     seq = []
@@ -89,19 +120,25 @@ def rbpformer_encode_batch(dataloader, model, tokenizer, device):
 
 
 def gen_Transformer_embedding(protein, model, tokenizer, device, k):
-    """Wrapper that k-mer-tokenizes raw sequences and obtains RBPformer outputs.
+    """
+    Convenience wrapper:
+        raw sequences -> k-mer strings -> batched Transformer inference.
 
-    Args:
-        sequences (List[str]): Raw nucleotide sequences.
-        model: Pre-loaded RBPformer model.
-        tokenizer: Corresponding tokenizer.
-        device (torch.device): CUDA / CPU device.
-        k (int, optional): k-mer length. Defaults to 1.
-        batch_size (int, optional): Batch size for DataLoader. Defaults to 2048.
+    Inputs:
+        - sequences (List[str]): Raw nucleotide sequences.
+        - model: Pre-loaded RBPformer model.
+        - tokenizer: Corresponding tokenizer.
+        - device (torch.device): CUDA / CPU device.
+        - k (int, optional): k-mer length. Defaults to 1.
 
-    Returns:
-        Tuple[np.ndarray, np.ndarray]: Arrays of per-sequence embeddings and
-            attention matrices.
+    Outputs:
+        embeds, attns:
+            np.array(...) built from lists of per-sequence arrays.
+
+    Tutorial caveat:
+        If sequences do NOT produce the same token length L (after k-merization/tokenization),
+        then np.array(list_of_arrays) may become a dtype=object array instead of a numeric tensor.
+        Many downstream operations (including `.transpose([0,2,1])`) assume a numeric 3D array.
     """
     sequences1 = protein
     sequences = []
@@ -143,28 +180,53 @@ def build_Transformer_embeddings(
     transpose_to_ch_first: bool = True,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Build Transformer embeddings and attention weights for input RNA/DNA sequences.
+    Build token-level embeddings and attention weights for input sequences.
 
-    This function loads a pretrained Transformer tokenizer and model from `transformer_path`,
-    runs `gen_Transformer_embedding` to obtain embeddings and attention,
-    and (optionally) transposes embeddings to channel-first format.
+    Tutorial summary:
+        This is the main entry point used by the training/inference pipeline.
+        It loads a pretrained tokenizer/model from `transformer_path`, converts raw sequences
+        into k-mer token strings, runs Transformer inference, and returns:
 
-    Args:
-        sequences (Sequence[str]): List/tuple of input sequences (length N).
-        transformer_path (str): Path or model name for HuggingFace `from_pretrained`.
-        device (torch.device): Target device to place the model on (e.g., torch.device("cuda:0")).
-        k (int): k-mer length to be used inside `gen_Transformer_embedding`.
-        transpose_to_ch_first (bool): If True, transpose embeddings from (N, L, C) to (N, C, L).
+            - Transformer_embedding: token-level embeddings
+            - attention_weight: attention weights aligned to token positions (verify exact shape)
 
-    Returns:
-        Tuple[np.ndarray, np.ndarray]:
-            - Transformer_embedding: np.ndarray, shape (N, C, L) if `transpose_to_ch_first` else (N, L, C).
-            - attention_weight: np.ndarray, attention matrices as returned by `gen_Transformer_embedding`.
+    Inputs:
+        sequences:
+            List/tuple of raw sequences (strings).
+        transformer_path:
+            HuggingFace model name or local checkpoint directory.
+        device:
+            Where the model runs (CPU/GPU).
+        k:
+            k-mer size. For k=1, token length typically matches sequence length.
+            For k>1, token length changes (~ len(seq) - k + 1).
+        transpose_to_ch_first:
+            If True, embeddings are transposed to channel-first format (N, C, L).
 
-    Notes:
-        - This function assumes `gen_Transformer_embedding(seqs, model, tokenizer, device, batch_size)`
-          returns `(embeddings, attentions)` where `embeddings` has shape (N, L, C).
-        - Type hints are for readability and static checking; they do not enforce runtime checks.
+    Outputs:
+        Transformer_embedding:
+            Intended shape:
+                - if transpose_to_ch_first=True: (N, C, L)
+                - else: (N, L, C)
+            where C should match downstream expectations (BRIDGE assumes C=512).
+            If token lengths vary across sequences, this may become an object array.
+
+        attention_weight:
+            Attention weights returned by `gen_Transformer_embedding`.
+            Downstream BRIDGE expects attention shaped like (B, L, L) for graph adjacency.
+
+    Downstream usage in BRIDGE:
+        Transformer_emb, attention_weight = build_Transformer_embeddings(
+            sequences=list(sequences),
+            transformer_path=args.Transformer_path,
+            device=device,
+            k=1,
+            transpose_to_ch_first=True
+        )
+        
+        BRIDGE.forward expects:
+            bert_embedding: (B, 512, L)
+            attn:          (B, L, L)
     """
     # Load tokenizer and model
     tokenizer = BertTokenizer.from_pretrained(transformer_path, do_lower_case=False)

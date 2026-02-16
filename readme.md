@@ -150,17 +150,32 @@ To enable GPU access inside Docker, install the
 
 #### Step 2: Build and run the Docker image
 
+##### GPU users
 Build the image:
 
 ```bash
-docker build -t bridge:latest .
+docker build -f Dockerfile.gpu -t bridge:gpu .
 ```
 
 Launch a container with GPU support:
 
 ```bash
-docker run --rm -it --gpus all bridge:latest
+docker run --rm -it --gpus all bridge:gpu
 ```
+
+##### CPU users
+Build the image:
+
+```bash
+docker build -f Dockerfile.cpu -t bridge:cpu .
+```
+
+Launch a container with CPU support:
+
+```bash
+docker run --rm -it bridge:cpu
+```
+
 
 ## 📂Data & Resources
 
@@ -174,12 +189,20 @@ To ensure reproducibility and ease of use, we provide all necessary resources pr
 | 🔹 Motif Priors  | `BRIDGE/utils/motif_prior/output/` | Precomputed motif prior files for all RBPs    |
 | 🔹 Model Files   | `BRIDGE/results/model/`            | Trained BRIDGE models                         |
 
-📥 **Download from**:
+### Download from
+[figshare DOI (v2)](https://doi.org/10.6084/m9.figshare.29819843.v2)
 
-- 🔗 [figshare DOI (v2)](https://doi.org/10.6084/m9.figshare.29819843.v2)
-- 🌐 [BRIDGE online portal](http://rbp.aibio-lab.com/app/api/download/index/)
+### Verify downloaded files
+To guarantee data integrity and exact alignment with the reported results,
+we provide SHA256 checksums for released files, together with a verification script.
 
-After downloading, extract the files to the corresponding locations under BRIDGE root directory.
+```bash
+python verify_checksums.py \
+  --checksum checksums.sha256 \
+  --data_dir path/to/downloaded/files
+```
+
+After verifying, you can extract the files to the corresponding locations under BRIDGE root directory.
 
 ## 🚀Usage
 
@@ -195,6 +218,7 @@ python main.py \
     --data_path ./dataset \
     --data_file AUH_HepG2 \
     --device_num 0 \
+    --seed 42 \
     --early_stopping 20 \
     --Transformer_path ./RBPformer \
     --model_save_path ./results/model \
@@ -209,6 +233,7 @@ python main.py \
     --data_path ./dataset \
     --data_file AUH_HepG2 \
     --use_cpu \
+    --seed 42 \
     --early_stopping 20 \
     --Transformer_path ./RBPformer \
     --model_save_path ./results/model \
@@ -227,6 +252,8 @@ python main.py \
   Force CPU mode even if CUDA is available.
 - `--device_num 0`
   Index of the CUDA device (equivalent to `torch.cuda.set_device(0)`).
+- `--seed 42`
+  Random seed for reproducibility. For all RBP datasets reported in the manuscript, a fixed seed of `42` was used.
 - `--early_stopping 20`
   Patience for early stopping (stop if validation metric does not improve for 20 epochs).
 - `--Transformer_path ./RBPformer`
@@ -239,7 +266,9 @@ python main.py \
 **Outputs**
 
 - Model checkpoints saved under `--model_save_path`.
-- Training logs/metrics.
+- Experiment configuration, including seed default saved under `results/logs/*_config.json`
+- Training logs default saved under `results/logs/*.log`
+- Evaluation metrics default saved under `results/metrics/*_best.json`
 
 ### 2) Validate (Evaluate a saved model)
 
@@ -317,7 +346,7 @@ python main.py \
 
 ```bash
 python variant_aware.py \
-    --after_variation \
+    --variation_mode after \
     --fasta_sequence_path ./dataset_variant/AUH_HepG2.fa \
     --Transformer_path ./RBPformer \
     --model_save_path ./results/model \
@@ -329,7 +358,7 @@ python variant_aware.py \
 
 ```bash
 python variant_aware.py \
-    --after_variation \
+    --variation_mode after \
     --fasta_sequence_path ./dataset_variant/AUH_HepG2.fa \
     --Transformer_path ./RBPformer \
     --model_save_path ./results/model \
@@ -339,8 +368,9 @@ python variant_aware.py \
 
 **Flags explained**
 
-- `--after_variation`
-  Use the post-mutation sequences to compute variant-aware scores.
+- `--variation_mode {before,after}`
+  before = score reference sequence; 
+  after = score mutated sequence.
 - `--fasta_sequence_path`
   Path to the FASTA-like file to score.
 - `--Transformer_path` / `--model_save_path`
@@ -447,6 +477,24 @@ python motif/Discovery_motifs.py \
 - `--verbose`
   Enables detailed logging.
 
+## 📘 Step-by-Step Tutorials
+
+We provide step-by-step tutorials in the `Tutorial` folder to help users get started. Each tutorial is designed as a self-contained Jupyter notebook.
+
+### Tutorial Descriptions
+
+#### `cell_type_specific/`
+
+- **`1.ipynb`** – ***
+
+- **`2.ipynb`** – ***
+
+#### `cross_cell_type/`
+
+- **`1.ipynb`** – ***
+
+- **`2.ipynb`** – ***
+
 ## 📜License
 
 This project is licensed under the MIT License.
@@ -464,4 +512,13 @@ Unpublished yet
 - Hugging Face Transformers for tokenizer/model loading.
 - PyTorch & PyTorch Geometric for deep learning and GNN components.
 
-**Email**: yubo23@mails.jlu.edu.cn; lixt314@jlu.edu.cn.
+## 💬User Support
+
+We provide two primary channels for user support and feedback:
+
+- **GitHub Issues**  
+  For bug reports, feature requests, and usage questions. This is the preferred channel for public discussion and community-driven support.
+
+- **Contact Email**  
+  yubo23@mails.jlu.edu.cn; lixt314@jlu.edu.cn  
+  For questions related to the paper or experimental details.

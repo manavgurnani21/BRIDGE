@@ -280,9 +280,10 @@ def convert_one_hot2(sequence, attention, max_length=None):
     return one_hot_seq
 
 class GradualWarmupScheduler(_LRScheduler):
-    """ Gradually warm-up(increasing) learning rate in optimizer.
-    Proposed in 'Accurate, Large Minibatch SGD: Training ImageNet in 1 Hour'.
-    Args:
+    """Gradually warm-up(increasing) learning rate in optimizer.
+    
+    Parameters:
+    -----
         optimizer (Optimizer): Wrapped optimizer.
         multiplier: target learning rate = base lr * multiplier
         total_epoch: target learning rate is reached at total_epoch, gradually

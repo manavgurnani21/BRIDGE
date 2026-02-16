@@ -1,0 +1,5 @@
+Query_ID	Target_ID	Optimal_offset	p-value	E-value	q-value	Overlap	Query_consensus	Target_consensus	Orientation
+
+# Tomtom (Motif Comparison Tool): Version 5.5.9 compiled on Nov 24 2025 at 04:07:03
+# The format of this file is described at https://meme-suite.org/meme/doc/tomtom-output-format.html.
+# tomtom -no-ssc -oc /fs1/private/user/wangyubo/code/BRIDGE/motif_construction/datasets/AARS_K562_tmp_results_mcross/motif_AAAAGA_1.meme_tomtom_results -verbosity 1 -min-overlap 6 -dist pearson -evalue -thresh 0.05 -time 300 -png /fs1/private/user/wangyubo/code/BRIDGE/motif_construction/db/mCrossBase/K562.AARS.meme /fs1/private/user/wangyubo/code/BRIDGE/motif_construction/datasets/AARS_K562/result/motif_AAAAGA_1.meme

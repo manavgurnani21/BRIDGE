@@ -2,6 +2,10 @@ import os
 import random
 import argparse
 import subprocess
+from pathlib import Path
+import time
+from datetime import datetime
+import json
 
 import numpy as np
 import torch
@@ -76,6 +80,32 @@ def fix_seed(seed):
     torch.cuda.manual_seed_all(seed)  # if using multi-GPU.
 
 
+def _prepare_run_dirs(args, file_name: str):
+    """
+    Prepare result directories and return (run_name, logs_dir, model_dir, metrics_dir).
+
+    Directory policy:
+    - Root defaults to ./results, override via --results_dir
+    - logs   -> {results_dir}/logs
+    - metrics-> {results_dir}/metrics
+    - model  -> args.model_save_path if provided and not default-empty, else {results_dir}/model
+    """
+    results_dir = Path(getattr(args, "results_dir", "./results"))
+    logs_dir = results_dir/"logs"
+    metrics_dir = results_dir/"metrics"
+
+    # If user passed --model_save_path, prefer it; otherwise use results_dir/model
+    model_dir = Path(getattr(args, "model_save_path", "")) if getattr(args, "model_save_path", "") else (results_dir / "model")
+
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    metrics_dir.mkdir(parents=True, exist_ok=True)
+    model_dir.mkdir(parents=True, exist_ok=True)
+
+    run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
+    run_name = f"{file_name}_{run_id}"
+    return run_name, logs_dir, model_dir, metrics_dir
+
+
 def main(args):
     """
     Main entry point for training the BRIDGE model.
@@ -89,6 +119,7 @@ def main(args):
     - dataset splitting and DataLoader creation
     - model training, validation, learning-rate scheduling, and early stopping
     - model checkpointing and performance reporting
+    - persistent logging/config/metrics under results/{logs,model,metrics}
 
     Parameters
     ----------
@@ -137,8 +168,38 @@ def main(args):
 
     if args.train:
         # Start timing the full training procedure
-        import time
         start_time = time.time()
+
+        # prepare run dirs + open logfile
+        run_name, logs_dir, model_dir, metrics_dir = _prepare_run_dirs(args, file_name)
+        log_path = logs_dir / f"{run_name}.log"
+        log_fp = open(log_path, "a", encoding="utf-8")
+
+        def log_both(msg: str, color=None, attrs=None):
+            # write to file
+            log_fp.write(msg + "\n")
+            log_fp.flush()
+            # print to console
+            log_print(msg, color=color, attrs=attrs)
+
+        # Write config file (args + key hyperparams)
+        config = {
+            "run_name": run_name,
+            "data_file": args.data_file,
+            "data_path": args.data_path,
+            "Transformer_path": args.Transformer_path,
+            "seed": args.seed,
+            "use_cpu": bool(args.use_cpu),
+            "device": str(device),
+            "device_num": int(args.device_num),
+            "train": bool(args.train),
+            "validate": bool(getattr(args, "validate", False)),
+            "dynamic_predict": bool(getattr(args, "dynamic_predict", False)),
+            "max_length": int(max_length),
+            "lr_cli": float(args.lr),
+            "early_stopping": int(args.early_stopping)
+        }
+
 
         # Construct paths to positive and negative FASTA files
         neg_path = os.path.join(data_path, file_name + '_neg.fa')
@@ -200,6 +261,26 @@ def main(args):
         warmup_epochs = 40
         lrs = []
         
+        # include schedule/loss/optimizer info in config
+        config.update(
+            {
+                "lr_schedule": {
+                    "initial_lrate": float(initial_lrate),
+                    "drop": float(drop),
+                    "epochs_drop": float(epochs_drop),
+                    "warmup_epochs": int(warmup_epochs),
+                }
+            }
+        )
+
+        config_path = logs_dir / f"{run_name}_config.json"
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2)
+
+        log_both(f"[RUN] {run_name}", color="green", attrs=["bold"])
+        log_both(f"[DIR] logs={logs_dir} model={model_dir} metrics={metrics_dir}")
+        log_both(f"[CFG] {config_path}")
+        
         # Track best validation metrics for model selection
         best_auc = 0
         best_acc = 0
@@ -211,10 +292,10 @@ def main(args):
         # Print total number of model parameters
         param_num(model)
         
-        # Directory for saving trained model checkpoints
-        model_save_path = './results/model'
-        if not os.path.exists(model_save_path):
-            os.makedirs(model_save_path)
+        ## Directory for saving trained model checkpoints
+        # model_save_path = args.model_save_path
+        # if not os.path.exists(model_save_path):
+        #     os.makedirs(model_save_path)
         
         # Training loop
         for epoch in range(1, 201):
@@ -248,8 +329,10 @@ def main(args):
                 best_prc = v_met.prc
                 best_epoch = epoch
                 color_best = 'red'
-                path_name = os.path.join(model_save_path, file_name+'.pth')
-                torch.save(model.state_dict(), path_name)
+                # path_name = os.path.join(model_save_path, file_name+'.pth')
+                # torch.save(model.state_dict(), path_name)
+                ckpt_path = model_dir / f"{run_name}.pth"
+                torch.save(model.state_dict(), ckpt_path)
                 
             # Early stopping based on validation performance
             if epoch - best_epoch > early_stopping:
@@ -259,16 +342,44 @@ def main(args):
             # Log training metrics
             line = '{} \t Train Epoch: {}     avg.loss: {:.4f} Acc: {:.2f}%, AUC: {:.4f}, PRC: {:.4f}, MCC: {:.4f}, lr: {:.6f}'.format(
                 file_name, epoch, t_met.other[0], t_met.acc, t_met.auc, t_met.prc, t_met.mcc, lr)
-            log_print(line, color='green', attrs=['bold'])
+            # log_print(line, color='green', attrs=['bold'])
+            log_both(line, color="green", attrs=["bold"])
             
             # Log validation metrics and best epoch so far
             line = '{} \t Test  Epoch: {}     avg.loss: {:.4f} Acc: {:.2f}%, AUC: {:.4f} ({:.4f}), PRC: {:.4f}, MCC: {:.4f}, {}'.format(
                 file_name, epoch, v_met.other[0], v_met.acc, v_met.auc, best_auc, v_met.prc, v_met.mcc, best_epoch)
-            log_print(line, color=color_best, attrs=['bold'])
+            # log_print(line, color=color_best, attrs=['bold'])
+            log_both(line, color=color_best, attrs=["bold"])
         
         # Report best validation performance
-        print("{} auc: {:.4f} acc: {:.4f} prc: {:.4f} mcc: {:.4f}".format(file_name, best_auc, best_acc, best_prc, best_mcc))
+        # print("{} auc: {:.4f} acc: {:.4f} prc: {:.4f} mcc: {:.4f}".format(file_name, best_auc, best_acc, best_prc, best_mcc))
+        summary_line = (
+            f"{file_name} best: auc={best_auc:.4f} acc={best_acc:.4f} prc={best_prc:.4f} mcc={best_mcc:.4f} "
+            f"(epoch={best_epoch})"
+        )
+        log_both(summary_line, color="green", attrs=["bold"])
         
+        best_summary = {
+            "run_name": run_name,
+            "data_file": file_name,
+            "best_epoch": int(best_epoch),
+            "best_val_auc": float(best_auc),
+            "best_val_acc": float(best_acc),
+            "best_val_prc": float(best_prc),
+            "best_val_mcc": float(best_mcc),
+            "seed": int(args.seed),
+            "device": str(device),
+            "checkpoint": str((model_dir / f"{run_name}.pth").resolve()),
+            "log_file": str(log_path.resolve()),
+            "config_file": str(config_path.resolve()),
+        }
+        best_path = metrics_dir / f"{run_name}_best.json"
+        with open(best_path, "w", encoding="utf-8") as f:
+            json.dump(best_summary, f, indent=2)
+        log_both(f"[BEST] {best_path}")
+
+        log_fp.close()
+
         # Report total training time
         end_time = time.time()
         time_cost = end_time - start_time
@@ -335,7 +446,7 @@ def main(args):
         model_file = os.path.join(args.model_save_path, file_name + '.pth')
 
         if not os.path.exists(model_file):
-            print('Model file does not exitsts! Please train first and save the model')
+            print('Model file does not exist! Please train first and save the model')
             exit()
 
         model.load_state_dict(torch.load(model_file))
@@ -456,9 +567,10 @@ if __name__ == '__main__':
     
     # Dataset and path configuration
     parser.add_argument('--data_file', default='AUH_HepG2', type=str, help='RBP to train or validate')
-    parser.add_argument('--data_path', default='/home/wangyubo/code/BRIDGE/dataset', type=str, help='The data path')
-    parser.add_argument('--Transformer_path', default='/home/wangyubo/code/BRIDGE/RBPformer', type=str, help='BERT model path, in case you have another BERT')
-    parser.add_argument('--model_save_path', default='/home/wangyubo/code/BRIDGE/results/model', type=str, help='Save the trained model for dynamic prediction')
+    parser.add_argument('--data_path', default='./dataset', type=str, help='The data path')
+    parser.add_argument("--results_dir",default="./results",type=str,help="Root directory for outputs; will create logs/, model/, metrics/ under it")
+    parser.add_argument('--Transformer_path', default='./RBPformer', type=str, help='BERT model path, in case you have another BERT')
+    parser.add_argument('--model_save_path', default='./results/model', type=str, help='Save the trained model for dynamic prediction')
     
     # Execution mode flags
     parser.add_argument('--train', default=False, action='store_true', help='Run training mode')

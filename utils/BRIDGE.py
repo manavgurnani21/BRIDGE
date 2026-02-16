@@ -132,21 +132,40 @@ class ADPNet(nn.Module):
 
 class BRIDGE(nn.Module):
     """
-        BRIDGE: Multimodal sequence-structure integration network.
+    BRIDGE: Multimodal sequence-structure integration network.
 
-        This architecture processes five different modalities:
-            1. Tranformer embeddings  (512 channels)
-            2. Structure profiles (1 channel)
-            3. Motif scores (1 channel)
-            4. Biochemical features (99 channels)
-            5. Graph representation of Tranformer tokens via GCN
+    Tutorial overview:
+        BRIDGE consumes multiple aligned modalities describing the same sequence tokens.
 
-        The outputs of each modality-specific branch are concatenated
-        and fed into an ADPNet backbone for final processing.
+        Expected common alignment dimension:
+            L = number of tokens per sequence (often fixed in this project, e.g., L=101).
+            All token-aligned inputs should share the same L:
+                - bert_embedding: (B, 512, L)
+                - structure:      (B, 1,   L)
+                - biochem:        (B, 99,  L)
+                - attn:           (B, L,   L)  (graph adjacency source)
 
-        Args:
-            k (int): Kernel size for structure and biochemical feature convs.
-                    Also used to compute ADPNet depth from sequence length.
+        The motif branch may start shorter (M != L) and is padded to L (here: 101) inside forward().
+        
+        Alignment requirement:
+            All token-aligned inputs must share the same L (typically 101 in this project),
+            which is enforced by data preprocessing and padding/truncation outside this module.
+
+    Modalities:
+        1) Transformer embeddings (512 channels)      -> conv_bert -> multiscaleKAN
+        2) Structure profiles (1 channel)            -> conv_str  -> multiscaleKAN
+        3) Motif scores (1 channel, length M)        -> conv_motif-> multiscaleKAN -> pad to length 101
+        4) Biochemical features (99 channels)        -> conv_biochem -> multiscaleKAN
+        5) Graph branch from Transformer tokens via GCN:
+            - node features come from token embeddings
+            - edges are derived from `attn` via `.nonzero()`
+            
+    Graph construction note (important for new readers):
+        - In this implementation, the graph topology is derived from `attn` (a token-to-token
+            connectivity signal passed into `forward`), not from structure/thermodynamic features.
+        - Structure and biochemical/thermodynamic features are used as separate token-aligned
+            modalities (Conv1d branches) and are fused later via concatenation.
+
     """
     def __init__(self, k: int = 3) -> None:
         super().__init__()
@@ -174,7 +193,32 @@ class BRIDGE(nn.Module):
         self._initialize_weights()
 
     def _initialize_weights(self) -> None:
-        """Initialize weights for conv, BN, and linear layers."""
+        """
+        Initialize learnable parameters for key layer types.
+
+        Tutorial notes:
+            Weight initialization can significantly affect optimization stability,
+            especially in deep networks with ReLU-like nonlinearities.
+
+            This routine applies common, sensible defaults:
+            - Convolution layers (Conv1d/Conv2d): Kaiming/He initialization
+                suited for ReLU activations (good variance preservation).
+            - BatchNorm layers: start as identity transform
+                (gamma=1, beta=0), so normalization does not distort features at init.
+            - Linear layers: small Gaussian initialization to start near zero.
+
+            Bias terms (when present) are set to zero to avoid introducing
+            an initial offset in activations.
+
+        Scope:
+            This iterates over `self.modules()`, so it will touch layers inside
+            submodules as well (e.g., ADPNet, etc.) *if* they use
+            standard PyTorch layer classes (nn.Conv*, nn.BatchNorm*, nn.Linear).
+
+            Layers not explicitly matched here (e.g., GCNConv, custom layers) keep
+            their own default initialization unless they internally use nn.Linear
+            submodules that appear in `self.modules()`.
+        """
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
@@ -206,47 +250,76 @@ class BRIDGE(nn.Module):
         """
         Forward pass of BRIDGE.
 
-        Args:
-            bert_embedding: BERT-derived embeddings for each token.
-            attn: Attention weight matrices (used as adjacency).
-            structure: Structure probability profiles.
-            motif: Motif prior scores (may be shorter than sequence length).
-            biochem: Biochemical feature profiles.
+        Inputs:
+            bert_embedding:
+                Token-aligned Transformer embeddings.
+                Must be channel-first: (B, 512, L).
+                This matches build_Transformer_embeddings(..., transpose_to_ch_first=True).
 
-        Returns:
-            torch.Tensor: Output of ADPNet after multimodal integration.
+            attn:
+                Token-to-token connectivity signal, expected shape (B, L, L).
+                Used to build `edge_index` for the GCN branch.
+                Expected to be adjacency-like before calling this module, since edges are
+                extracted via `.nonzero()`.
+
+            structure:
+                Token-aligned structure profile (e.g., pairing probability), (B, 1, L).
+
+            motif:
+                Motif prior scores, (B, 1, M). This branch pads motif features to length 101.
+
+            biochem:
+                Token-aligned biochemical features, (B, 99, L).
+
+        Output:
+            Model prediction produced by ADPNet after multimodal fusion and multiscale KAN feature extractors.
         """
+        # ===== Graph branch (GCN over tokens) =====
+        node_features = bert_embedding  # (B, 512, L)
+        adj = attn                      # (B, L, L)
         
-        node_features = bert_embedding
-        adj = attn
+        # Here, `num_nodes` is taken from adj.shape[1] (i.e., L)
         batch_size, num_nodes, _ = adj.shape
+        
+        # Build edge indices per sample by taking all nonzero entries in adjacency.
         edge_index_list = []
         for i in range(batch_size):
             edge_index = adj[i].nonzero(as_tuple=False).t().contiguous()
             edge_index_list.append(edge_index)
         edge_index = torch.cat(edge_index_list, dim=1)
+        
+        # Convert node features from (B, 512, L) -> (B*L, 512) to feed into PyG GCNConv
         node_features = node_features.permute(0, 2, 1).contiguous().view(-1, 512)
         x = self.gcn(node_features, edge_index)
+        
+        # Convert back to (B, 32, L)
         x = x.view(batch_size, num_nodes, -1).permute(0, 2, 1).contiguous()
         
+        # ===== Embedding branch =====
         x0 = self.conv_bert(bert_embedding)
         x0 = self.multiscale_bert(x0)
         
+        # ===== Structure branch =====
         x1 = structure
         x1 = self.conv_str(x1)
         x1 = self.multiscale_str(x1)
         
+        # ===== Motif branch =====
         x2 = motif
         x2 = self.conv_motif(x2)
         x2 = self.multiscale_motif(x2)
+        
+        # Pad motif features to the fixed target length (101)
         total_padding = 101 - x2.size(2)
         left_pad = total_padding // 2
         right_pad = total_padding - left_pad
         x2 = F.pad(x2, (left_pad, right_pad), "constant", 0)
 
+        # ===== Biochemical branch =====
         x3 = self.conv_biochem(biochem)
         x3 = self.multiscale_biochem(x3)
-
+        
+        # ===== Fusion =====
         x = torch.cat([x, x0, x1, x2, x3], dim=1)
         return self.adpnet(x)
     

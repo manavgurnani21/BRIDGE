@@ -1,0 +1,49 @@
+# --- Python ---
+__pycache__/
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.env
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+
+# --- OS / Editor ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# --- Outputs / Data ---
+/results/
+/data/
+/dataset_all/
+/tutorial/
+/tutorials/
+/.github/
+/dataset_motif1mer/
+/dataset_variant/
+/RBPformer/
+*.log
+*.tmp
+
+# --- Figures ---
+*.png
+*.pdf
+*.svg
+
+# --- Docs ---
+docs/build/
+reproducibility/
+
+# Remain
+!framework.png
+!reproducibility/Fig2/
+!results/logs/
+!results/metrics/
+!results/model/
