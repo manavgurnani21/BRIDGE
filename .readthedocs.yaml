@@ -5,8 +5,9 @@ build:
   tools:
     python: "miniforge3-latest"
 
-conda:
-  environment: BRIDGE.yml
+python:
+  install:
+    - requirements: docs/requirements-rtd.txt
 
 sphinx:
   configuration: docs/conf.py
