@@ -1,4 +1,3 @@
-# --- docs build ---
 sphinx-book-theme
 myst-nb
 sphinx-autodoc-typehints
