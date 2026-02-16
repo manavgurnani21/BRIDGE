@@ -10,7 +10,7 @@ conda:
 
 python:
   install:
-    - requirements: docs/requirements.txt
+    - requirements: docs/requirements-rtd.txt
 
 sphinx:
   configuration: docs/conf.py
