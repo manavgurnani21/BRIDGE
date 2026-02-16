@@ -45,6 +45,7 @@ reproducibility/
 !/results/metrics/
 !/results/model/
 
+!/reproducibility/Fig2/**
 !/results/logs/**
 !/results/metrics/**
 !/results/model/**
