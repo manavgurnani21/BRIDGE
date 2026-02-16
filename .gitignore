@@ -40,7 +40,7 @@ reproducibility/
 
 # Remain
 !framework.png
-!reproducibility/Fig2/
+!/reproducibility/Fig2/
 !/results/logs/
 !/results/metrics/
 !/results/model/
