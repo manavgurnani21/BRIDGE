@@ -3,6 +3,8 @@ matplotlib
 pillow
 tqdm
 h5py
+scipy
+logomaker
 sphinx-book-theme
 myst-nb
 sphinx-autodoc-typehints
