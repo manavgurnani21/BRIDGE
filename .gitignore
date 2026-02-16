@@ -20,7 +20,7 @@ Thumbs.db
 .idea/
 
 # --- Outputs / Data ---
-/results/
+/results/*
 /data/
 /dataset_all/
 /tutorial/
@@ -41,9 +41,9 @@ reproducibility/
 # Remain
 !framework.png
 !reproducibility/Fig2/
-!results/logs/
-!results/metrics/
-!results/model/
+!/results/logs/
+!/results/metrics/
+!/results/model/
 
 !/results/logs/**
 !/results/metrics/**

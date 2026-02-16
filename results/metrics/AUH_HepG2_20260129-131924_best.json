@@ -1,0 +1,14 @@
+{
+  "run_name": "AUH_HepG2_20260129-131924",
+  "data_file": "AUH_HepG2",
+  "best_epoch": 103,
+  "best_val_auc": 0.9020387500000001,
+  "best_val_acc": 0.8463333333333334,
+  "best_val_prc": 0.8439708835663886,
+  "best_val_mcc": 0.6440209826598539,
+  "seed": 42,
+  "device": "cuda:0",
+  "checkpoint": "/fs1/private/user/wangyubo/code/BRIDGE/results/model/AUH_HepG2_20260129-131924.pth",
+  "log_file": "/fs1/private/user/wangyubo/code/BRIDGE/results/logs/AUH_HepG2_20260129-131924.log",
+  "config_file": "/fs1/private/user/wangyubo/code/BRIDGE/results/logs/AUH_HepG2_20260129-131924_config.json"
+}
