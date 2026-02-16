@@ -4,10 +4,6 @@ build:
   os: ubuntu-22.04
   tools:
     python: "miniforge3-latest"
-  jobs:
-    post_install:
-      - python -m pip install -r docs/requirements-rtd.txt
-      - python -c "import sphinx_book_theme; print('sphinx_book_theme:', sphinx_book_theme.__file__)"
 
 conda:
   environment: BRIDGE.yml
