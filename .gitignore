@@ -36,16 +36,18 @@ Thumbs.db
 
 # --- Docs ---
 docs/build/
-reproducibility/
+/reproducibility/*
 
 # Remain
 !framework.png
+
+!/reproducibility/
 !/reproducibility/Fig2/
+!/reproducibility/Fig2/**
+
 !/results/logs/
 !/results/metrics/
 !/results/model/
-
-!/reproducibility/Fig2/**
 !/results/logs/**
 !/results/metrics/**
 !/results/model/**
