@@ -3,15 +3,15 @@ version: 2
 build:
   os: ubuntu-22.04
   tools:
-    python: "mambaforge-22.9"   # 用 conda/mamba 时必须指定这个 :contentReference[oaicite:1]{index=1}
+    python: "mambaforge-22.9"
 
 conda:
-  environment: environment.yml  # 你的 yml 路径（相对 repo root） :contentReference[oaicite:2]{index=2}
+  environment: BRIDGE.yml
 
 python:
   install:
     - method: pip
-      path: .                   # 建议把你的项目 pip install 进去，确保 import 路径干净 :contentReference[oaicite:3]{index=3}
+      path: .
 
 sphinx:
   configuration: docs/conf.py
