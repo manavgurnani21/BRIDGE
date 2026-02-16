@@ -9,9 +9,7 @@ python:
   install:
     - method: pip
       path: .
-      extra_requirements:
-        - 
-    - requirements: reqs.txt  # 新增
+    - requirements: reqs.txt
 submodules:
   include:
     - "docs/tutorials/notebooks"
