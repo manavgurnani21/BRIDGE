@@ -1,0 +1,19 @@
+# --- docs build ---
+sphinx-book-theme
+myst-nb
+sphinx-autodoc-typehints
+sphinxcontrib-bibtex
+sphinx-copybutton
+sphinx-design
+sphinxext-opengraph
+sphinx-hoverxref
+
+# --- minimal runtime deps for autodoc imports ---
+numpy
+tqdm
+h5py
+matplotlib
+
+# torch CPU wheels
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
