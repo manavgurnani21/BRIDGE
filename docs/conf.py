@@ -70,6 +70,8 @@ html_context = {
 autodoc_mock_imports = [
     "einops",
     "transformers",
+    "tokenizers",
+    "huggingface_hub",
     "sklearn",
     "skimage",
     "pandas",
@@ -77,7 +79,9 @@ autodoc_mock_imports = [
     "torch",
     "torchvision",
     "torch_geometric",
+    "triton",
 ]
+
 
 # -- Extensions --------------------------------------------------------------
 def _maybe(ext: str) -> str | None:

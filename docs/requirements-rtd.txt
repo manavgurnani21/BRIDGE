@@ -1,3 +1,8 @@
+numpy
+matplotlib
+pillow
+tqdm
+h5py
 sphinx-book-theme
 myst-nb
 sphinx-autodoc-typehints
