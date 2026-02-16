@@ -8,5 +8,9 @@ build:
 conda:
   environment: BRIDGE.yml
 
+python:
+  install:
+    - requirements: docs/requirements.txt
+
 sphinx:
   configuration: docs/conf.py
