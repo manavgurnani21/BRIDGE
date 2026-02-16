@@ -67,6 +67,18 @@ html_context = {
     "conf_py_path": "/docs/",
 }
 
+autodoc_mock_imports = [
+    "einops",
+    "transformers",
+    "sklearn",
+    "skimage",
+    "pandas",
+    "igrads",
+    "torch",
+    "torchvision",
+    "torch_geometric",
+]
+
 # -- Extensions --------------------------------------------------------------
 def _maybe(ext: str) -> str | None:
     """Only enable an extension if it is importable."""
