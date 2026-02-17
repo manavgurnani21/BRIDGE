@@ -1,31 +1,11 @@
-# %%
-# import tensorflow as tf
 import igrads
 import matplotlib.pyplot as plt
 import logomaker
 import pandas as pd
-# %%
-# def attribution(inputs, model, atype='IG', steps=50):
-#     """Compute sequence attribution(s) for a given model and inputs.
+import torch.nn.functional as F
+import torch
 
-#     Args:
-#         inputs (tf.Tensor or np.ndarray): 2D (input_length, 4) tensor of onehot-encoded sequence.
-#         model (Keras Model): Model to compute attribution for.
 
-#     Returns:
-#         tf.Tensor: Feature attributions.
-#     """
-    
-#     # pred = model.predict(tf.expand_dims(inputs, axis=0))
-#     inputs = inputs.unsqueeze(0)
-#     pred = model(inputs)
-
-#     if atype == 'IG':
-#         return igrads.integrated_gradients(inputs, model, target_mask=pred, steps=steps)
-#     elif atype == 'grad_x_input':
-#         return igrads.grad_x_input(inputs, model, target_mask=pred)
-#     else:
-#         raise ValueError(f'Unrecognized attribution type {atype}.')
 def attribution(inputs, structure, model, atype='IG', steps=50):
     """Compute sequence and structure attributions for a given model and inputs.
 
@@ -64,7 +44,33 @@ custom_color_scheme = {
     'U': '#ea2529'   # Red
 }
 
+
 def make_attribution_figure(a, ax):
+    """
+    Plot an attribution matrix (L x 4) as a sequence logo on a given Matplotlib axis.
+
+    This function converts an attribution matrix into a pandas DataFrame with
+    columns corresponding to nucleotide channels and then uses logomaker to render
+    a logo. It also draws a horizontal baseline at y=0 and removes the bottom spine.
+
+    Args:
+        a (array-like):
+            Attribution matrix with shape (L, 4), where L is sequence length.
+            Channel order is assumed to match ['A', 'C', 'G', 'U'].
+            Values can be signed (e.g., importance scores) or non-negative (e.g., probabilities).
+        ax (matplotlib.axes.Axes):
+            Axis on which the logo will be drawn.
+
+    Returns:
+        None. The plot is drawn in-place on `ax`.
+
+    Requires:
+        - logomaker installed and importable.
+
+    Visual conventions:
+        - shade_below/fade_below highlight negative contributions by default.
+        - a y=0 baseline is drawn in red.
+    """
     df = pd.DataFrame(a, columns=['A', 'C', 'G', 'U'])
     # logomaker.Logo(df, shade_below=.5, fade_below=.5, font_name='Arial Rounded MT Bold', ax=ax)
     logomaker.Logo(df, shade_below=.5, fade_below=.5, ax=ax, color_scheme=custom_color_scheme)
@@ -73,6 +79,33 @@ def make_attribution_figure(a, ax):
     
     
 def visualize_track_attribution(track, attribution, sequence=None, title=None):
+    """
+    Visualize a predicted 1D track together with an attribution logo (and optionally the input sequence logo).
+
+    The output figure stacks panels vertically:
+      1) track panel (line plot)
+      2) attribution panel (logo)
+      3) optional sequence panel (logo of one-hot encoding)
+
+    Args:
+        track (array-like):
+            1D signal of length L (e.g., predicted binding signal along the sequence).
+            Must be plottable by Matplotlib (list, np.ndarray, torch.Tensor, etc.).
+        attribution (array-like or torch.Tensor):
+            Attribution matrix with shape (L, 4). If a torch.Tensor, it will be detached to CPU numpy.
+            Channel order should match ['A','C','G','U'] (see make_attribution_figure).
+        sequence (str, optional):
+            Optional RNA sequence of length L. If provided, it will be converted to one-hot and shown
+            as a logo in the third panel.
+            IMPORTANT: `sequence2onehot` (as written below) supports bases in `base2int`.
+            Unknown bases will lead to failure in one-hot (see notes in module docstring).
+        title (str, optional):
+            Title for the top track panel.
+
+    Returns:
+        matplotlib.figure.Figure:
+            The created figure instance.
+    """
     nplots = 3 if sequence is not None else 2
     hratio = [5, 2, 0.3] if sequence is not None else [5, 2]
     
@@ -80,8 +113,6 @@ def visualize_track_attribution(track, attribution, sequence=None, title=None):
     axs[0].set_title(title)
     axs[0].plot(track, color='red', label='Pred. Signal', linewidth=2)
     
-    # if isinstance(attribution, tf.Tensor):
-    #     attribution = attribution.numpy()
     if isinstance(attribution, torch.Tensor):
         attribution = attribution.detach().cpu().numpy()
 
@@ -116,7 +147,19 @@ def visualize_track_attribution(track, attribution, sequence=None, title=None):
     
     return fig
 
+
 def visualize_attribution_only(attribution):
+    """
+    Visualize only an attribution matrix (L x 4) as a logo.
+
+    Args:
+        attribution (array-like or torch.Tensor):
+            Attribution matrix with shape (L, 4).
+
+    Returns:
+        matplotlib.figure.Figure:
+            The created figure instance.
+    """
     fig, ax = plt.subplots(1, 1, figsize=(22, 1.5))
     
     if isinstance(attribution, torch.Tensor):
@@ -134,9 +177,32 @@ def visualize_attribution_only(attribution):
     return fig
 
 
-import torch.nn.functional as F
-
 def _to_probs(value, key):
+    """
+    Convert raw model outputs (logits) into probabilities based on the output key name.
+
+    This helper applies a key-dependent transformation:
+    - If key contains '_profile': apply softmax over dim=1 (commonly used for per-position categorical profiles).
+    - If key contains '_mixing_coefficient': apply sigmoid (commonly used for scalar/bounded coefficients).
+
+    Args:
+        value (torch.Tensor):
+            Raw tensor output from the model (typically logits).
+        key (str):
+            Output dictionary key that indicates how to interpret `value`.
+
+    Returns:
+        torch.Tensor:
+            Transformed tensor in probability space.
+
+    Raises:
+        ValueError:
+            If `key` does not match any recognized pattern.
+
+    Example:
+        pred = model(inputs)  # {'something_profile': logits, 'something_mixing_coefficient': logits2}
+        pred_probs = {k: _to_probs(v, k) for k, v in pred.items()}
+    """
     if '_profile' in key:
         value = F.softmax(value, dim=1)
     elif '_mixing_coefficient' in key:
@@ -146,8 +212,31 @@ def _to_probs(value, key):
     return value
 
 
-# %%
 def predict(inputs, model, to_probs=True):
+    """
+    Run a model forward pass on already-prepared inputs and optionally convert logits to probabilities.
+
+    Assumes `model(inputs)` returns a dictionary mapping output-name -> tensor.
+
+    Args:
+        inputs (torch.Tensor):
+            Model inputs, typically one-hot encoded sequences of shape:
+              - (B, L, 4) for batch size B, length L, 4 channels.
+            The exact expected shape depends on your model implementation.
+        model (torch.nn.Module):
+            PyTorch model that returns a dict of outputs.
+        to_probs (bool):
+            If True, convert each output tensor from logits to probabilities using `_to_probs`
+            based on the output key naming convention.
+
+    Returns:
+        dict[str, torch.Tensor]:
+            Model outputs; either raw logits (to_probs=False) or probabilities (to_probs=True).
+
+    Raises:
+        ValueError:
+            If to_probs=True and an output key is not recognized by `_to_probs`.
+    """
     pred = model(inputs)
     if to_probs:
         pred = {key: _to_probs(value, key) for key, value in pred.items()}
@@ -155,24 +244,90 @@ def predict(inputs, model, to_probs=True):
 
 base2int = {'A': 0, 'C': 1, 'G': 2, 'T': 3}
 
-# %%
+
 def sequence2int(sequence):
+    """
+    Convert a nucleotide sequence string into integer indices using `base2int`.
+
+    Args:
+        sequence (str):
+            RNA sequence. Expected characters are keys of `base2int` (default: A/C/G/T).
+
+    Returns:
+        list[int]:
+            Integer-encoded sequence of length L.
+
+    Warning:
+        Unknown bases are mapped to 999 by default, which will later break one-hot encoding
+        (torch.nn.functional.one_hot requires values < num_classes). Ensure sequences contain
+        only valid bases before calling downstream helpers.
+    """
     return [base2int.get(base, 999) for base in sequence]
 
-import torch
 
 def sequences2inputs(sequences):
+    """
+    Convert one or more sequences into a batch of one-hot encoded tensors.
+
+    Args:
+        sequences (str or list[str]):
+            If str, treated as a single sequence (length L).
+            If list[str], treated as a batch of sequences (all should have equal length L for stacking).
+
+    Returns:
+        torch.Tensor:
+            One-hot tensor of shape (B, L, 4), dtype float32,
+            where B is batch size (1 if input is a single string).
+
+    Raises:
+        RuntimeError / ValueError:
+            If sequences contain invalid bases (mapped to 999), one_hot will fail.
+            If sequences have inconsistent lengths, tensor construction may fail.
+    """
     if isinstance(sequences, str):
         sequences = [sequences]
     return F.one_hot(torch.tensor([sequence2int(s) for s in sequences]), num_classes=4).float()
 
 
 def sequence2onehot(sequence):
+    """
+    Convert a single sequence string into a one-hot encoded tensor.
+
+    Args:
+        sequence (str):
+            Single RNA sequence of length L.
+
+    Returns:
+        torch.Tensor:
+            One-hot tensor of shape (L, 4), dtype float32.
+
+    Raises:
+        RuntimeError / ValueError:
+            If sequence contains invalid bases (mapped to 999), one_hot will fail.
+    """
     return F.one_hot(torch.tensor(sequence2int(sequence)), num_classes=4).float()
 
 
-# %%
 def predict_from_sequence(sequences, model, **kwargs):
+    """
+    Convenience wrapper: encode sequence(s) to one-hot, then call `predict`.
+
+    Args:
+        sequences (str or list[str]):
+            Sequence(s) to predict on.
+            - If str: returns outputs with batch dimension squeezed.
+            - If list[str]: returns batched outputs.
+        model (torch.nn.Module):
+            PyTorch model that accepts one-hot inputs and returns a dict of outputs.
+        **kwargs:
+            Passed through to `predict`, e.g. to_probs=False.
+
+    Returns:
+        dict[str, torch.Tensor]:
+            Prediction dictionary.
+            - If input is a single sequence string, each tensor will be squeezed from (1, ...) to (...).
+            - If input is a list, tensors remain batched.
+    """
     one_hot = sequences2inputs(sequences)
     pred = predict(one_hot, model, **kwargs)
     
@@ -181,9 +336,6 @@ def predict_from_sequence(sequences, model, **kwargs):
     
     return pred
 
-
-# %%
-import torch
 
 def __predict(self, inputs, **kwargs):
     """Returns model predictions on inputs with logits to probs."""
@@ -207,14 +359,48 @@ def __explain(self, inputs, **kwargs):
     return attribution(inputs, self, **kwargs)
 
 def __add_attributes_and_bound_methods(model):
-    # Bind custom methods to the PyTorch model instance
+    """
+    Monkey-patch a PyTorch model instance with convenience methods.
+
+    After calling this, the model instance will have:
+        - model.predict(inputs, **kwargs)
+        - model.predict_from_sequence(sequences, **kwargs)
+        - model.explain(inputs, **kwargs)
+
+    Args:
+        model (torch.nn.Module):
+            Model instance to be extended in-place.
+
+    Returns:
+        None.
+    """
     model.predict = __predict.__get__(model)
     model.predict_from_sequence = __predict_from_sequence.__get__(model)
     model.explain = __explain.__get__(model)
     
 
 def load_model(model, filepath, **kwargs):
-    
+    """
+    Load a PyTorch model state dict from disk and attach convenience methods.
+
+    Args:
+        model (torch.nn.Module):
+            Instantiated model object with the same architecture as the saved checkpoint.
+        filepath (str):
+            Path to a file produced by torch.save(model.state_dict(), filepath).
+        **kwargs:
+            Reserved for future extensions (currently unused). You may use this to pass
+            torch.load kwargs in your own fork (e.g., map_location), but as written
+            it is not forwarded.
+
+    Returns:
+        torch.nn.Module:
+            The same `model` instance with loaded parameters, patched methods, and set to eval() mode.
+
+    Important:
+        - This uses `torch.load(filepath)` directly. If you need CPU/GPU mapping, you may want
+          to modify to `torch.load(filepath, map_location=...)`.
+    """
     model.load_state_dict(torch.load(filepath))
     __add_attributes_and_bound_methods(model)
     model.eval()
