@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import argparse
@@ -27,20 +26,30 @@ RIBOSNITCHES_MAX_LEN: int = 101  # matches the shapes in the provided ribosnitch
 # I/O helpers
 # ---------------------------------------------------------------------------
 def read_fasta(fasta_path: Path) -> Tuple[List[str], List[str]]:
-    """Read a FASTA file (supports wrapped / multi-line sequences).
+    """
+    Read a FASTA file (supports wrapped / multi-line sequences).
 
-    Parameters
-    ----------
-    fasta_path : Path
-        Path to a FASTA file. Each record starts with a header line beginning
-        with '>' followed by one or more sequence lines.
+    A record starts with a header line beginning with ``>`` followed by one or more
+    sequence lines. Wrapped sequences are concatenated and returned upper-cased.
 
-    Returns
-    -------
-    headers : List[str]
-        Header lines (including the leading '>'), one per record.
-    seqs : List[str]
-        Upper-cased sequences (concatenated across wrapped lines), one per record.
+    :param fasta_path:
+        Path to a FASTA file on disk.
+    :type fasta_path: pathlib.Path
+
+    :returns:
+        A tuple ``(headers, seqs)``.
+        - ``headers``: header lines (including the leading ``>``), one per record.
+        - ``seqs``: concatenated, upper-cased sequences, one per record.
+    :rtype: tuple[list[str], list[str]]
+
+    :raises FileNotFoundError:
+        If ``fasta_path`` does not exist.
+    :raises OSError:
+        If the file cannot be opened/read.
+
+    .. note::
+        - Empty/blank lines are ignored.
+        - No alphabet validation is performed here; downstream code may validate A/C/G/T/U/N.
     """
     headers: List[str] = []
     seqs: List[str] = []
@@ -69,15 +78,13 @@ def read_fasta(fasta_path: Path) -> Tuple[List[str], List[str]]:
     return headers, seqs
 
 
-
-
 def open_output(out_path: os.PathLike | str) -> Path:
     """Create parent directories and return a `Path` for appending outputs."""
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     return out_path
 
-# ---------------------------------------------------------------------------
+
 # ---------------------------------------------------------------------------
 # Variant utilities
 # ---------------------------------------------------------------------------
@@ -143,7 +150,18 @@ _VARIANT_TOKEN_RE = re.compile(r"^\d+:[ACGT]>[ACGT]$", re.IGNORECASE)
 
 
 def _find_variant_token(fields: List[str]) -> Optional[str]:
-    """Find a token like '11120205:T>C' anywhere in a split FASTA header."""
+    """
+    Find a variant token like '11120205:T>C' in a split FASTA header.
+
+    Args:
+        fields (List[str]):
+            Tokens from `fasta_header.lstrip('>').split()`.
+
+    Returns:
+        Optional[str]:
+            The first token matching the variant pattern (case-insensitive),
+            or None if not found.
+    """
     for tok in fields:
         if _VARIANT_TOKEN_RE.match(tok):
             return tok
@@ -190,7 +208,7 @@ def parse_variant_block_flexible(fasta_header: str) -> Tuple[int, str, str, str,
 
 
 def apply_complement(base: str) -> str:
-    """Return Watson–Crick complement for A/T/C/G; otherwise return `base` unchanged."""
+    """Return Watson-Crick complement for A/T/C/G; otherwise return `base` unchanged."""
     return COMPLEMENT.get(base, base)
 
 
