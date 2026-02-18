@@ -26,30 +26,33 @@ RIBOSNITCHES_MAX_LEN: int = 101  # matches the shapes in the provided ribosnitch
 # I/O helpers
 # ---------------------------------------------------------------------------
 def read_fasta(fasta_path: Path) -> Tuple[List[str], List[str]]:
-    """
-    Read a FASTA file (supports wrapped / multi-line sequences).
+    """Read a FASTA file (supports wrapped / multi-line sequences).
 
-    A record starts with a header line beginning with ``>`` followed by one or more
-    sequence lines. Wrapped sequences are concatenated and returned upper-cased.
+    This reader supports multi-line (wrapped) FASTA sequences. Each record begins with a
+    header line starting with '>' and is followed by one or more sequence lines. Sequence
+    lines are concatenated and returned in upper-case.
 
-    :param fasta_path:
-        Path to a FASTA file on disk.
-    :type fasta_path: pathlib.Path
+    Args:
+        fasta_path (Path):
+            Path to a FASTA file on disk.
 
-    :returns:
-        A tuple ``(headers, seqs)``.
-        - ``headers``: header lines (including the leading ``>``), one per record.
-        - ``seqs``: concatenated, upper-cased sequences, one per record.
-    :rtype: tuple[list[str], list[str]]
+    Returns:
+        Tuple[List[str], List[str]]:
+            A tuple ``(headers, seqs)`` where:
 
-    :raises FileNotFoundError:
-        If ``fasta_path`` does not exist.
-    :raises OSError:
-        If the file cannot be opened/read.
+            - **headers**: List of header lines (including the leading '>'), one per record.
+            - **seqs**: List of concatenated, upper-cased sequences, one per record.
 
-    .. note::
+    Raises:
+        FileNotFoundError:
+            If ``fasta_path`` does not exist.
+        OSError:
+            If the file cannot be opened/read.
+
+    Notes:
         - Empty/blank lines are ignored.
-        - No alphabet validation is performed here; downstream code may validate A/C/G/T/U/N.
+        - This function does not validate alphabet (A/C/G/T/U/N). If you need strict
+          validation, do it downstream.
     """
     headers: List[str] = []
     seqs: List[str] = []
@@ -89,47 +92,56 @@ def open_output(out_path: os.PathLike | str) -> Path:
 # Variant utilities
 # ---------------------------------------------------------------------------
 def parse_variant_block(fasta_header: str) -> Tuple[int, str, str, str, int]:
-    """Parse a FASTA header and extract variant coordinates (legacy rule).
+    """Parse a FASTA header and extract variant coordinates.
 
-    This is the original parsing rule used by the GWAS/BRIDGE branch, kept intact
+    This is the original parsing rule used by the GWAS branch, kept intact
     for backward compatibility.
 
-    Expected header (example)
-    -------------------------
-    >variant_1 chr1:27891903-27892003(-)[...]{NA} 27891953:T>A ...
+    Expected header (example):
+        .. code-block:: text
 
-    Token usage in the original implementation
-    ------------------------------------------
-    fields = fasta_header.lstrip('>').split()
+            >variant_1 chr1:27891903-27892003(-)[...]{NA} 27891953:T>A ...
 
-    - fields[1] is the region token like: chr1:27891903-27892003(-)[...]
-      We parse:
-        * strand    : text between '(' and ')', e.g. '+' or '-'
-        * seq_start : the window start coordinate, the first number after ':'
+    Token usage in the original implementation:
+        .. code-block:: text
 
-    - fields[-2] is the variant token like: 27891953:T>A
-      We parse:
-        * variant_pos : the genomic position (integer)
-        * ref_base    : REF base (string)
-        * alt_base    : ALT base (string)
+            fields = fasta_header.lstrip('>').split()
 
-    Returns
-    -------
-    variant_pos : int
-        Genomic coordinate of the variant.
-    ref_base : str
-        Reference allele base (A/C/G/T).
-    alt_base : str
-        Alternate allele base (A/C/G/T).
-    strand : str
-        '+' or '-' parsed from the region token.
-    seq_start : int
-        Genomic coordinate of the window start (used to compute 0-based index into the sequence).
+        - ``fields[1]`` is the region token like: ``chr1:27891903-27892003(-)[...]``
+          We parse:
+            * **strand**: text between '(' and ')', e.g. '+' or '-'
+            * **seq_start**: window start coordinate, the first number after ':'
 
-    Raises
-    ------
-    ValueError
-        If the header does not contain enough tokens to parse with the above rules.
+        - ``fields[-2]`` is the variant token like: ``27891953:T>A``
+          We parse:
+            * **variant_pos**: genomic position (int)
+            * **ref_base**: reference base (str)
+            * **alt_base**: alternate base (str)
+
+    Args:
+        fasta_header (str):
+            FASTA header line including the leading '>'.
+
+    Returns:
+        Tuple[int, str, str, str, int]:
+            ``(variant_pos, ref_base, alt_base, strand, seq_start)`` where:
+
+            - **variant_pos** (int): Genomic coordinate of the variant.
+            - **ref_base** (str): Reference allele base (A/C/G/T).
+            - **alt_base** (str): Alternate allele base (A/C/G/T).
+            - **strand** (str): '+' or '-' parsed from the region token.
+            - **seq_start** (int): Genomic coordinate of the window start (used to compute
+              0-based index into the sequence).
+
+    Raises:
+        ValueError:
+            If the header does not contain enough tokens to parse with this rule
+            (e.g., fewer than 3 whitespace-separated fields).
+
+    Notes:
+        - This parser assumes **fixed token positions**. If your headers contain extra
+          trailing tokens (e.g., cell line names), consider using
+          ``parse_variant_block_flexible`` as a fallback.
     """
     fields = fasta_header.lstrip(">").split()
     if len(fields) < 3:
@@ -161,6 +173,11 @@ def _find_variant_token(fields: List[str]) -> Optional[str]:
         Optional[str]:
             The first token matching the variant pattern (case-insensitive),
             or None if not found.
+
+    Notes:
+        - Regex is ``^\\d+:[ACGT]>[ACGT]$`` (case-insensitive).
+        - 'U' is not accepted by this regex. If you expect RNA tokens like ``A>U``,
+          extend the pattern accordingly.
     """
     for tok in fields:
         if _VARIANT_TOKEN_RE.match(tok):
@@ -169,7 +186,17 @@ def _find_variant_token(fields: List[str]) -> Optional[str]:
 
 
 def _find_region_token(fields: List[str]) -> Optional[str]:
-    """Find a region token like 'chr19:11120155-11120255(+)[...]' anywhere in a split header."""
+    """Find a region token like ``chr_num:start-end(strand)[...]`` in a split header.
+
+    Args:
+        fields (List[str]):
+            Tokens from a FASTA header split by whitespace.
+
+    Returns:
+        Optional[str]:
+            The first token that contains ':', '-', '(' and ')' (heuristic match),
+            or ``None`` if not found.
+    """
     for tok in fields:
         if ":" in tok and "-" in tok and "(" in tok and ")" in tok:
             # This is intentionally permissive; the exact bracket payload can vary.
@@ -178,15 +205,27 @@ def _find_region_token(fields: List[str]) -> Optional[str]:
 
 
 def parse_variant_block_flexible(fasta_header: str) -> Tuple[int, str, str, str, int]:
-    """Parse a FASTA header and extract variant coordinates (robust rule).
+    """Parse a FASTA header and extract variant coordinates (flexible token search rule).
 
-    This parser is designed for headers where the variant token is not necessarily
-    at a fixed index (e.g. when the last two tokens are cell-line names).
+    This parser is designed for headers where the variant token is not necessarily at a fixed index (e.g. when the last two tokens are cell-line names). It is used by the ribosnitches-after branch, but can also serve as a fallback when `parse_variant_block()` fails.
 
-    It is used by the ribosnitches-after branch, but can also serve as a fallback
-    when `parse_variant_block()` fails.
+    Parsing strategy:
+        1) Split header into tokens:
+           ``fields = fasta_header.lstrip('>').split()``
+        2) Locate:
+           - region token: a token containing ':', '-', '(' and ')'
+           - variant token: matches ``^\\d+:[ACGT]>[ACGT]$`` (case-insensitive)
+        3) Extract:
+           - strand and seq_start from region token
+           - variant_pos/ref/alt from variant token
 
-    Returns (same fields as `parse_variant_block`).
+    Args:
+        fasta_header (str):
+            FASTA header line including the leading '>'.
+
+    Returns:
+        Tuple[int, str, str, str, int]:
+            ``(variant_pos, ref_base, alt_base, strand, seq_start)`` where each field has the same meaning as in ``parse_variant_block``.
     """
     fields = fasta_header.lstrip(">").split()
     if len(fields) < 3:
@@ -239,10 +278,20 @@ def substitute_base(seq: str, pos0: int, alt: str) -> str:
 # Model loaders (with caching)
 # ---------------------------------------------------------------------------
 class ModelHub:
-    """Caches heavy models & tokenizers for the GWAS/BRIDGE workflow.
+    """Caches heavy models & tokenizers for the GWAS workflow.
 
     The tokenizer/transformer are loaded once and held for reuse. BRIDGE checkpoints
     are cached by filename stem to avoid repeated disk loads in long FASTA batches.
+    
+    Attributes:
+        device (torch.device):
+            Inference device (CPU/CUDA).
+        tokenizer (BertTokenizer):
+            Tokenizer loaded from ``transformer_path``.
+        transformer (BertModel):
+            Transformer encoder loaded from ``transformer_path`` and set to ``eval()``.
+        bridge_cache (Dict[str, BRIDGE]):
+            Cache mapping ``filename_stem`` to loaded BRIDGE models.
     """
 
     def __init__(self, transformer_path: Path, device: torch.device) -> None:
