@@ -5,7 +5,6 @@ import torch
 import utils.metrics as metrics
 
 
-
 def train(model, device, train_loader, criterion, optimizer, batch_size):
     """Train one epoch and accumulate binary classification metrics.
 
@@ -13,6 +12,27 @@ def train(model, device, train_loader, criterion, optimizer, batch_size):
     forward -> loss -> backward -> gradient clipping -> optimizer step. Metrics
     are tracked via ``utils.metrics.MLMetrics(objective="binary")``.
 
+    Parameters
+    ----------
+    model : torch.nn.Module
+        Model callable with signature ``model(x, attn, s, motif, plfold)`` returning logits.
+    device : torch.device
+        Target device used to move tensors and model.
+    train_loader : torch.utils.data.DataLoader
+        Iterable over training batches, each yielding the 6-tuple described above.
+    criterion : callable
+        Loss function. Common choice is ``torch.nn.BCEWithLogitsLoss`` when outputs are logits.
+    optimizer : torch.optim.Optimizer
+        Optimizer for updating model parameters.
+    batch_size : int
+        Expected batch size used for detecting all-positive/all-negative batches.
+
+    Returns
+    -------
+    utils.metrics.MLMetrics
+        Metric accumulator updated over all non-skipped batches. Contains aggregated
+        binary-classification metrics and mean loss (as passed via ``met.update``).
+        
     Notes
     -----
     **Expected batch format**
@@ -45,27 +65,6 @@ def train(model, device, train_loader, criterion, optimizer, batch_size):
       - all-positive: ``y0.sum() == batch_size``
 
       This avoids metric updates and optimization steps on single-class batches.
-
-    Parameters
-    ----------
-    model : torch.nn.Module
-        Model callable with signature ``model(x, attn, s, motif, plfold)`` returning logits.
-    device : torch.device
-        Target device used to move tensors and model.
-    train_loader : torch.utils.data.DataLoader
-        Iterable over training batches, each yielding the 6-tuple described above.
-    criterion : callable
-        Loss function. Common choice is ``torch.nn.BCEWithLogitsLoss`` when outputs are logits.
-    optimizer : torch.optim.Optimizer
-        Optimizer for updating model parameters.
-    batch_size : int
-        Expected batch size used for detecting all-positive/all-negative batches.
-
-    Returns
-    -------
-    utils.metrics.MLMetrics
-        Metric accumulator updated over all non-skipped batches. Contains aggregated
-        binary-classification metrics and mean loss (as passed via ``met.update``).
     """
     model.train()
     met = metrics.MLMetrics(objective='binary')
@@ -97,28 +96,6 @@ def validate(model, device, test_loader, criterion):
     - concatenated probabilities ``p_all`` (computed as ``sigmoid(logits)``)
     - mean loss across batches
 
-    Notes
-    -----
-    **Expected batch format**
-
-    - Each batch from ``test_loader`` must be a 6-tuple::
-
-          (x0, x00, x000, x0000, x00000, y0)
-
-    - Semantics:
-
-      - ``x0``      -> ``x``     : RBPformer feature tensor
-      - ``x00``     -> ``attn``  : attention / adjacency-like tensor
-      - ``x000``    -> ``s``     : structural tensor
-      - ``x0000``   -> ``motif`` : motif tensor
-      - ``x00000``  -> ``plfold``: biochemical tensor
-      - ``y0``      -> ``y``     : binary labels (0/1)
-
-    **Tensor conventions**
-
-    - Model returns logits; probabilities are computed as ``torch.sigmoid(output)``.
-    - Arrays are concatenated along the first axis to produce dataset-level outputs.
-
     Parameters
     ----------
     model : torch.nn.Module
@@ -141,7 +118,25 @@ def validate(model, device, test_loader, criterion):
 
     Notes
     -----
-    The returned ``met`` is updated with the mean batch loss (simple average).
+    **Expected batch format**
+
+    - Each batch from ``test_loader`` must be a 6-tuple::
+
+          (x0, x00, x000, x0000, x00000, y0)
+
+    - Semantics:
+
+      - ``x0``      -> ``x``     : RBPformer feature tensor
+      - ``x00``     -> ``attn``  : attention / adjacency-like tensor
+      - ``x000``    -> ``s``     : structural tensor
+      - ``x0000``   -> ``motif`` : motif tensor
+      - ``x00000``  -> ``plfold``: biochemical tensor
+      - ``y0``      -> ``y``     : binary labels (0/1)
+
+    **Tensor conventions**
+
+    - Model returns logits; probabilities are computed as ``torch.sigmoid(output)``.
+    - Arrays are concatenated along the first axis to produce dataset-level outputs.
     """
     model.eval()
     y_all = []
@@ -180,22 +175,6 @@ def validate2(model, device, test_loader, criterion):
     This function assumes ``test_loader`` yields inputs only (no ``y0``) and returns
     concatenated probabilities computed as ``torch.sigmoid(logits)``.
 
-    Notes
-    -----
-    **Expected batch format**
-
-    - Each batch from ``test_loader`` must be a 5-tuple::
-
-          (x0, x00, x000, x0000, x00000)
-
-    - Semantics:
-
-      - ``x0``      -> ``x``     : RBPformer feature tensor
-      - ``x00``     -> ``attn``  : attention / adjacency-like tensor
-      - ``x000``    -> ``s``     : structural tensor
-      - ``x0000``   -> ``motif`` : motif tensor
-      - ``x00000``  -> ``plfold``: biochemical tensor
-
     Parameters
     ----------
     model : torch.nn.Module
@@ -211,6 +190,22 @@ def validate2(model, device, test_loader, criterion):
     -------
     np.ndarray
         Concatenated probabilities for all samples. Shape typically ``(N,)`` or ``(N, 1)``.
+        
+    Notes
+    -----
+    **Expected batch format**
+
+    - Each batch from ``test_loader`` must be a 5-tuple::
+
+          (x0, x00, x000, x0000, x00000)
+
+    - Semantics:
+
+      - ``x0``      -> ``x``     : RBPformer feature tensor
+      - ``x00``     -> ``attn``  : attention / adjacency-like tensor
+      - ``x000``    -> ``s``     : structural tensor
+      - ``x0000``   -> ``motif`` : motif tensor
+      - ``x00000``  -> ``plfold``: biochemical tensor
     """
     model.eval()
     p_all = []
@@ -236,22 +231,6 @@ def validate_without_sigmoid(model, device, test_loader, criterion):
     directly (i.e., no ``torch.sigmoid``). This is useful when downstream code wants logits,
     applies custom transformations, or when the model already outputs probabilities.
 
-    Notes
-    -----
-    **Expected batch format**
-
-    - Each batch from ``test_loader`` must be a 5-tuple::
-
-          (x0, x00, x000, x0000, x00000)
-
-    - Semantics:
-
-      - ``x0``      -> ``x``     : RBPformer feature tensor
-      - ``x00``     -> ``attn``  : attention / adjacency-like tensor
-      - ``x000``    -> ``s``     : structural tensor
-      - ``x0000``   -> ``motif`` : motif tensor
-      - ``x00000``  -> ``plfold``: biochemical tensor
-
     Parameters
     ----------
     model : torch.nn.Module
@@ -270,8 +249,19 @@ def validate_without_sigmoid(model, device, test_loader, criterion):
 
     Notes
     -----
-    Despite the name ``p_all``, the returned array may contain logits, scores, or probabilities
-    depending on the model implementation.
+    **Expected batch format**
+
+    - Each batch from ``test_loader`` must be a 5-tuple::
+
+          (x0, x00, x000, x0000, x00000)
+
+    - Semantics:
+
+      - ``x0``      -> ``x``     : RBPformer feature tensor
+      - ``x00``     -> ``attn``  : attention / adjacency-like tensor
+      - ``x000``    -> ``s``     : structural tensor
+      - ``x0000``   -> ``motif`` : motif tensor
+      - ``x00000``  -> ``plfold``: biochemical tensor
     """
     model.eval()
     p_all = []
