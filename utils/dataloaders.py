@@ -16,6 +16,9 @@ def read_fasta_with_struct_single(
           3) Structure line: comma-separated numeric tokens, one per nucleotide position.
 
     Example record:
+
+    .. code-block:: text
+
         >record_001 optional metadata
         ACGTACGT
         0.12,0.03,0.50,0.10,0.22,0.18,0.07,0.09
@@ -38,14 +41,10 @@ def read_fasta_with_struct_single(
             The returned label array will be float32.
 
     Returns:
-        sequences (List[str]):
-            List of sequence strings, length N (number of records).
-            Each string has length L_i for record i.
-        structs (List[str]):
-            List of raw comma-separated structure score strings, length N.
-            Each entry corresponds to one record and should have exactly L_i comma-separated items.
-        labels (np.ndarray):
-            Array of shape (N, 1), dtype float32, filled with `label_val`.
+        Tuple[List[str], List[str], np.ndarray]:
+            - sequences: List of sequence strings, length N (number of records). Each string has length L_i.
+            - structs: List of raw comma-separated structure score strings, length N. Each has L_i items.
+            - labels: Array of shape (N, 1), dtype float32, filled with label_val.
 
     Raises:
         FileNotFoundError:

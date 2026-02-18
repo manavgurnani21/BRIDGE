@@ -1,30 +1,3 @@
-"""
-Lightweight utilities for dataset IO scaffolding and sequence preprocessing.
-
-This module intentionally contains only a small set of helper functions used across the codebase:
-
-- File-system helpers:
-  - make_directory: create a parent directory and a named subdirectory if missing.
-  - finished: check whether a text results file has an expected number of lines.
-  - get_file_names: list `.h5` filenames in a directory (utility for dataset discovery).
-
-- Serialization / formatting:
-  - md5: compute an MD5 hex digest for a UTF-8 string (useful for stable IDs / caching keys).
-  - mat2str: format a 1D/2D numeric array into a comma-separated string with fixed precision.
-
-- Sequence preprocessing:
-  - convert_one_hot: convert DNA/RNA sequences into a one-hot array with channels [A, C, G, U/T],
-    optionally centered and zero-padded to a fixed length.
-
-- Dataset splitting:
-  - split_dataset: perform a stratified train/test split by thresholding targets at 0.5.
-
-Conventions:
-- One-hot encoding uses 4 channels in the order A, C, G, (U/T). Characters other than A/C/G/U/T
-  are left as all-zeros at that position.
-- split_dataset treats targets < 0.5 as negatives and targets >= 0.5 as positives.
-"""
-
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function

@@ -1,34 +1,3 @@
-"""
-Metrics utilities for model evaluation.
-
-This module provides:
-- Scalar metrics for binary / multi-label / regression-like objectives:
-  accuracy, ROC-AUC, PR-AUC, F1, MCC, Pearson correlation, R^2
-- Confusion-matrix derived counts (TP/TN/FP/FN)
-- `calculate_metrics(...)` as a unified entry point producing:
-    mean: list of summary metrics (order depends on objective)
-    std:  list of metric standard deviations (order depends on objective)
-- `MLMetrics` accumulator that stores per-batch metrics and exposes running averages.
-
-Input conventions:
-- For binary tasks:
-    label: shape (N,) or (N, 1), values in {0,1}
-    prediction: shape (N,) or (N, 1), values in [0,1] (probabilities/scores)
-- For multi-label tasks:
-    label: shape (N, K)
-    prediction: shape (N, K)
-- For categorical tasks:
-    label/prediction: one-hot or probability matrices with shape (N, K)
-- For regression-like objectives ('squared_error', 'kl_divergence', 'cdf'):
-    label/prediction are converted into binary labels by thresholding label at 0.5 before classification metrics.
-
-Important:
-- Several functions round predictions via `np.round(prediction)` for classification decisions.
-  Confusion-matrix counts in `calculate_metrics` use `prediction > 0.5` as the class threshold.
-- The `mean` list layout is relied upon by `MLMetrics` (fixed indices for acc/auc/prc/f1/mcc and TP/TN/FP/FN).
-  See `calculate_metrics` docstring for the exact ordering per objective.
-"""
-
 import os, sys
 import numpy as np
 from six.moves import cPickle
@@ -397,7 +366,7 @@ def calculate_metrics(label, prediction, objective):
     """
     Unified metric computation for different learning objectives.
 
-    Depending on `objective`, this function computes a set of metrics and returns:
+    Depending on objective, this function computes a set of metrics and returns:
         mean: list of aggregated metrics (nanmean over label dimensions where applicable)
         std:  list of metric standard deviations (nanstd over label dimensions)
 
@@ -423,9 +392,7 @@ def calculate_metrics(label, prediction, objective):
         Tuple[list[float], list[float]]:
             mean, std:
                 For objective == "binary" or "hinge":
-                    mean = [
-                        acc, auc_roc, auc_pr, f1, mcc, tp, tn, fp, fn
-                    ]
+                    mean = [acc, auc_roc, auc_pr, f1, mcc, tp, tn, fp, fn]
                     std  = [acc_std, auc_roc_std, auc_pr_std, f1_std, mcc_std]
 
                 For objective == "categorical":
@@ -435,14 +402,8 @@ def calculate_metrics(label, prediction, objective):
 
                 For objective in {"squared_error","kl_divergence","cdf"}:
                     The labels are thresholded into {0,1} before classification metrics.
-                    mean = [
-                        acc, auc_roc, auc_pr, tp, tn, fp, fn,
-                        pearsonr_mean, rsquare_mean, slope_mean
-                    ]
-                    std  = [
-                        acc_std, auc_roc_std, auc_pr_std,
-                        pearsonr_std, rsquare_std, slope_std
-                    ]
+                    mean = [acc, auc_roc, auc_pr, tp, tn, fp, fn, pearsonr_mean, rsquare_mean, slope_mean]
+                    std  = [acc_std, auc_roc_std, auc_pr_std, pearsonr_std, rsquare_std, slope_std]
 
     Notes:
         - For binary/hinge and regression-like objectives, confusion counts are computed using:
