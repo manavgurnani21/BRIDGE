@@ -96,7 +96,7 @@ extensions = [
     for e in [
         "myst_nb",
         "sphinx.ext.autodoc",
-        # "sphinx.ext.intersphinx",
+        "sphinx.ext.intersphinx",
         "sphinx.ext.linkcode",  # provides "view source" links via linkcode_resolve below
         "sphinx.ext.mathjax",
         "sphinx.ext.napoleon",

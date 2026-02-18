@@ -13,7 +13,6 @@
       param_num
       read_csv
       read_csv_with_name
-      read_h5
       resolve_dynamic_model_name
       seq2kmer
       split_dataset
