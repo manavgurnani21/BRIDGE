@@ -1,3 +1,169 @@
+"""
+Dataset, encoding utilities, and learning-rate scheduling helpers for BRIDGE.
+
+This module groups together several utilities used across BRIDGE training/inference:
+(1) sequence preprocessing / encoding, (2) multimodal Dataset wrappers,
+(3) stratified train/test splitting for aligned modalities, and
+(4) a warmup learning-rate scheduler compatible with both step-based schedulers
+and ReduceLROnPlateau.
+
+Provided functionality
+----------------------
+Sequence / feature utilities
+    - :func:`seq2kmer`:
+      Convert a raw sequence into overlapping k-mers (stride 1).
+      (Note: current implementation returns a list of k-mers, not a single space-delimited string.)
+    - :func:`convert_one_hot`:
+      Standard A/C/G/U(T) one-hot encoding with optional **centered** zero-padding.
+    - :func:`convert_one_hot2`:
+      Attention-weighted one-hot encoding (writes `attention[i]` instead of 1.0).
+
+Dataset splitting
+    - :func:`split_dataset`:
+      Stratified split by a binary threshold on targets (targets < 0.5 vs >= 0.5),
+      applied consistently across multiple aligned modalities.
+
+Model inspection
+    - :func:`param_num`:
+      Print total/trainable parameter counts for a PyTorch model.
+
+Dataset wrappers (multimodal, BRIDGE-style)
+    - :class:`BaseRBPDataset`:
+      A generic dataset that returns an ordered tuple of tensors defined by
+      the subclass attribute ``modalities``.
+    - :class:`RBPTrainDataset`:
+      Training/validation dataset returning 6 items including labels.
+    - :class:`RBPInferDataset`:
+      Inference dataset returning 5 items without labels.
+    - :class:`myDataset`, :class:`myDataset2`:
+      Legacy dataset wrappers kept for backward compatibility.
+
+Tabular dataset readers
+    - :func:`read_csv`:
+      Read a TSV file and return (sequences, structs, targets).
+    - :func:`read_csv_with_name`:
+      Read a TSV file and also return record identifiers.
+
+Learning-rate scheduling
+    - :class:`GradualWarmupScheduler`:
+      Warm up learning rate from base_lr to base_lr * multiplier over a fixed number
+      of epochs, then delegate to another scheduler (including ReduceLROnPlateau).
+
+Dynamic model name helper
+    - :func:`resolve_dynamic_model_name`:
+      Heuristic mapping between cell-line suffixes (e.g., swapping to HepG2 or K562)
+      for "dynamic" prediction settings.
+
+BRIDGE batch conventions (important)
+------------------------------------
+BRIDGE training/inference code typically expects each sample to be represented by
+multiple aligned modalities, returned as a tuple by the Dataset. The standard order is:
+
+**Training / labeled evaluation** (6-tuple)
+    (embedding, attn, struct, motif, plfold, label)
+
+**Inference only** (5-tuple)
+    (embedding, attn, struct, motif, biochem)
+
+This module provides both modern dataset classes that follow this contract:
+
+- :class:`RBPTrainDataset`: modalities = ("embedding", "attn", "struct", "motif", "plfold", "label")
+- :class:`RBPInferDataset`: modalities = ("embedding", "attn", "struct", "motif", "biochem")
+
+and legacy classes (:class:`myDataset`, :class:`myDataset2`) with fixed attribute names.
+
+BaseRBPDataset design (singular key -> plural attribute)
+--------------------------------------------------------
+:class:`BaseRBPDataset` expects keyword tensors named exactly as in ``modalities``.
+It stores each tensor as a pluralized attribute: ``key="embedding"`` becomes
+``self.embeddings``. Therefore, the keys you pass must be singular:
+
+.. code-block:: python
+
+    ds = RBPTrainDataset(
+        embedding=...,  # becomes self.embeddings
+        attn=...,       # becomes self.attns
+        struct=...,     # becomes self.structs
+        motif=...,      # becomes self.motifs
+        plfold=...,     # becomes self.plfolds
+        label=...,      # becomes self.labels
+    )
+
+If you accidentally pass already-plural keys (e.g., embeddings=...), the dataset will
+create attributes like self.embeddingss and __getitem__ will fail.
+
+File format expectations
+------------------------
+read_csv / read_csv_with_name
+    These readers expect a TSV with at least 6 columns and a header-like row where
+    column 0 equals the literal string "Type" (that row is dropped).
+
+    - Column 2: sequence string
+    - Column 3: structure string (raw string; downstream may parse it)
+    - Column 5: label/target (cast to float32 and reshaped to (N, 1))
+
+    :func:`read_csv_with_name` additionally returns column 1 as the record identifier.
+
+Note: these readers do not validate sequence alphabet or structure length. If you need strict
+validation, validate upstream (e.g., in a FASTA/structure parser) or add checks here.
+
+Encoding notes and caveats
+--------------------------
+convert_one_hot
+    - Encodes A/C/G/U(T) into 4 channels.
+    - Unknown characters (e.g., N) remain all-zeros unless handled elsewhere.
+    - Optional centered padding to max_length may be used to match fixed-length models.
+
+convert_one_hot2
+    - Same channel mapping as convert_one_hot but writes attention weights.
+    - Assumes `attention` indexing is valid for the sequence length.
+      If sequences vary in length, you likely need per-sequence attention vectors.
+
+seq2kmer
+    - Returns a list of k-mers, not a joined string. If you need a tokenizer-friendly
+      representation, join with spaces in a separate helper (or adjust this function).
+    - The current implementation contains unused randomness (rand1/rand2) and a commented
+      line that would add random flank bases; as written, randomness does not affect output.
+
+Train/test splitting behavior
+-----------------------------
+:func:`split_dataset` performs a stratified split by class, defined as:
+    negatives: targets < 0.5
+    positives: targets >= 0.5
+
+It permutes indices within each class and then concatenates positives first, then negatives.
+All modalities are split using the same indices to preserve alignment.
+
+If you need reproducibility, set NumPy RNG seed before calling:
+    np.random.seed(...)
+
+Warmup scheduler usage
+----------------------
+:class:`GradualWarmupScheduler` increases LR linearly for `total_epoch` epochs until it reaches
+`base_lr * multiplier`. After warmup, it delegates to `after_scheduler`.
+
+If `after_scheduler` is ReduceLROnPlateau, you must pass `metrics`:
+
+.. code-block:: python
+
+    warm = GradualWarmupScheduler(optimizer, multiplier=10, total_epoch=5,
+                                  after_scheduler=ReduceLROnPlateau(optimizer))
+    for epoch in range(num_epochs):
+        train(...)
+        val_loss = ...
+        warm.step(metrics=val_loss)   # required for ReduceLROnPlateau
+
+Otherwise, typical schedulers work as usual:
+    warm.step(epoch)
+
+Dynamic model name resolution caveat
+------------------------------------
+:func:`resolve_dynamic_model_name` currently returns a modified name only when a recognized
+suffix is found. If no suffix matches, it returns None implicitly. If you want identity
+behavior, add a final `return name`.
+
+"""
+
 import numpy as np
 import pandas as pd
 import h5py

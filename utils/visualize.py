@@ -1,3 +1,69 @@
+"""
+Saliency visualization utilities for BRIDGE models.
+
+This module provides:
+  1) `inference(...)`: batched model inference that returns sigmoid probabilities.
+  
+  2) PWM/logo rendering utilities (`normalize_pwm`, `get_nt_height`, `seq_logo`):
+  
+     - Convert a 4xL PWM (A/C/G/U) into an RGB logo image by stacking pre-rendered
+       nucleotide glyphs with per-position heights.
+       
+  3) `plot_saliency(...)`: end-to-end saliency plotting that combines:
+  
+       - saliency logo (normalized saliency PWM -> logo)
+       - saliency heatmap (raw weights resized to a fixed canvas)
+       - raw sequence logo
+       - optional structure saliency track + structure trace overlay
+
+Expected inputs
+---------------
+X : np.ndarray
+    Input feature matrix with shape:
+      - sequence-only mode: (4, L)
+      - sequence+structure mode: (>=5, L) where X[4, :] is per-position structure score
+        (typically in [0, 1], with higher = more "pairedness"/signal depending on upstream).
+    Padding positions are represented by all zeros across X[:4, pos]. The plotting code
+    automatically removes such padded columns.
+
+W : np.ndarray
+    Saliency/importance weights aligned to X. Must have at least the first 4 rows
+    corresponding to nucleotide channels (A/C/G/U or A/C/G/T treated as U).
+    Shape should match X for the plotted channels, typically (4, L) or (>=5, L).
+
+str_null : np.ndarray, optional
+    Mask marking "null" structure positions (e.g., regions without valid structure scores).
+    Required when X has a structure row (X.shape[0] > 4). The plotting code uses
+    `str_null.T == 1` to select null positions, so the input should be shaped/broadcastable
+    accordingly.
+
+External assets & dependencies
+------------------------------
+- `./acgu.npz` is required by `seq_logo(...)`.
+  It must contain an array under key `'data'` with 4 RGB glyph images (A,C,G,U) that can be
+  indexed by nucleotide channel index. Glyphs are resized per position with skimage.
+
+- `skimage.transform.resize` is used for resizing glyphs and heatmaps.
+
+Output
+------
+`plot_saliency(...)` saves a single PNG image to `outdir`, but note:
+  - Despite the name, `outdir` is treated as a *file path* in the current implementation
+    (e.g., "results/foo.png"), not a directory.
+
+Backend note
+------------
+The script sets `mpl.use("pdf")` but saves figures as PNG via `fig.savefig(..., format="png")`.
+For headless servers, a more typical choice is `mpl.use("Agg")`. The current behavior is
+preserved for compatibility.
+
+Common pitfalls
+---------------
+- If `acgu.npz` is missing or malformed, `seq_logo` will fail at load time.
+- If X/W include negative values, information-content scaling in `get_nt_height` is not
+  strictly meaningful unless `norm == 1` (fixed-height mode).
+"""
+
 import os, sys
 import numpy as np
 import matplotlib as mpl

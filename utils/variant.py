@@ -1,3 +1,170 @@
+"""
+Variant-aware inference utilities for BRIDGE (GWAS / ribosnitches-style workflows).
+
+This module implements I/O and parsing helpers used by BRIDGE variant scoring pipelines.
+It focuses on FASTA inputs whose headers encode variant coordinates and alleles, and
+provides utilities to (1) reconstruct the alternate-allele sequence window, and (2)
+cache heavy Transformer/BRIDGE models for high-throughput scoring.
+
+Key ideas
+---------
+1) FASTA parsing with wrapped sequences
+   :func:`read_fasta` supports standard multi-line/wrapped FASTA sequences. Each record
+   begins with a header line starting with '>' and is followed by one or more sequence
+   lines. Sequence lines are concatenated and returned in upper-case.
+   
+2) Variant metadata encoded in headers
+
+   Two parsers are provided:
+
+   - :func:`parse_variant_block` (legacy / fixed token positions)
+     Assumes the region token is at ``fields[1]`` and the variant token is at
+     ``fields[-2]``. This matches the original GWAS implementation and is kept
+     for backward compatibility.
+
+   - :func:`parse_variant_block_flexible` (robust / token search)
+     Searches the header tokens for:
+
+     * a region token that contains ``:``, ``-``, ``(``, and ``)``
+     * a variant token matching
+       ``^\\d+:[ACGT]>[ACGT]$`` (case-insensitive)
+
+     This is intended for headers where trailing tokens vary (for example,
+     extra annotations or cell-line suffixes), and is often used by
+     ribosnitches-style inputs.
+
+   Both parsers return the same 5-tuple::
+
+       (variant_pos, ref_base, alt_base, strand, seq_start)
+
+   where:
+
+   - ``variant_pos``: genomic coordinate of the SNV
+   - ``ref_base``: reference allele base (A/C/G/T)
+   - ``alt_base``: alternate allele base (A/C/G/T)
+   - ``strand``: ``'+'`` or ``'-'`` parsed from the region token
+   - ``seq_start``: genomic start of the provided sequence window
+
+3) Coordinate conversion: genomic -> window index
+
+   Given::
+
+       idx0 = variant_pos - seq_start
+
+   the index is 0-based into the sequence window returned by
+   :func:`read_fasta`.
+
+   Most pipelines then validate that::
+
+       seq[idx0] == ref_base
+
+   (or its complement for the ``'-'`` strand) before substituting the
+   alternate base.
+
+4) Strand handling and complements
+
+   This module provides:
+
+   - :data:`COMPLEMENT` mapping for DNA letters ``{A, T, C, G, N}``
+   - :func:`apply_complement` to map one base to its Watson-Crick complement
+   - :func:`substitute_base` to write an alternate allele at a 0-based window index
+
+   Important:
+
+   - If your sequence window is given on the ``'-'`` strand, typical pipelines
+     usually do one of the following:
+
+     * store the window already reverse-complemented
+       (then ``ref_base`` / ``alt_base`` can be used directly), or
+     * store the window in genomic ``'+'`` orientation
+       (then allele complementation may be required)
+
+   - This module only provides the complement primitive. The exact policy should
+     be enforced by the caller (that is, the caller decides whether to
+     complement ``ref_base`` / ``alt_base`` when ``strand == '-'``).
+
+   - The complement mapping uses ``'T'`` (DNA). If your windows are RNA
+     (``'U'``), consider extending ``COMPLEMENT`` with ``{"U": "A"}`` and
+     adjusting parsing/validation accordingly.
+
+5) High-throughput model reuse via :class:`ModelHub`
+
+   BRIDGE variant scoring typically requires:
+
+   - a tokenizer + Transformer encoder (BERT-like) for k-mer embeddings
+   - a BRIDGE checkpoint per experiment/model name
+
+   :class:`ModelHub` caches these heavy components:
+
+   - loads tokenizer and Transformer once from ``transformer_path``
+   - caches BRIDGE checkpoints by ``filename_stem`` to avoid repeated disk I/O
+     when a FASTA file contains many records spanning multiple models
+
+Constants
+---------
+COMPLEMENT
+    DNA Watson–Crick complement mapping used by :func:`apply_complement`.
+
+RIBOSNITCHES_MAX_LEN
+    Default fixed window length (101) used by ribosnitches-derived pipelines.
+    Many downstream feature builders assume length 101; if you deviate, ensure you
+    also update shape-dependent modules.
+
+I/O helpers
+-----------
+read_fasta(fasta_path)
+    Read headers and sequences from a FASTA file. Supports wrapped sequences.
+
+open_output(out_path)
+    Create parent directories and return a `Path` suitable for writing/appending.
+
+Variant utilities
+-----------------
+parse_variant_block(fasta_header)
+    Fixed-position parser (legacy GWAS rule).
+
+parse_variant_block_flexible(fasta_header)
+    Search-based parser (robust to header token drift).
+
+apply_complement(base)
+    Complement a single base (A/T/C/G), returning unchanged for unknown letters.
+
+substitute_base(seq, pos0, alt)
+    Replace the base at 0-based index pos0 with alt and return the new string.
+
+ModelHub
+--------
+ModelHub(transformer_path, device)
+    Loads tokenizer/Transformer once, and caches BRIDGE checkpoints.
+
+ModelHub.load_bridge(model_dir, filename_stem)
+    Load `<model_dir>/<filename_stem>.pth` into a BRIDGE model on the hub device.
+    Returns None if the checkpoint is missing.
+
+Common failure modes and recommendations
+---------------------------------------
+- Header format drift:
+    If parse_variant_block() raises ValueError or yields wrong tokens, switch to
+    parse_variant_block_flexible() or call it as a fallback.
+
+- Variant token alphabet:
+    The default regex accepts only A/C/G/T. If your headers can contain 'U'
+    (e.g., A>U), extend `_VARIANT_TOKEN_RE`.
+
+- Bounds checking:
+    Always check `0 <= (variant_pos - seq_start) < len(window_seq)` before indexing.
+
+- Ref allele validation:
+    Before writing alt allele, validate that the observed base matches the expected
+    ref allele (possibly after complementing for '-' strand depending on your policy).
+
+Logging
+-------
+This module uses the standard `logging` module. The caller should configure logging
+handlers/levels (e.g., via `logging.basicConfig`) if runtime diagnostics are desired.
+
+"""
+
 from __future__ import annotations
 
 import argparse

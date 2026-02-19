@@ -1,3 +1,149 @@
+"""
+BRIDGE model components: multimodal sequenc-structure network + supporting blocks.
+
+This module defines the core neural network building blocks used in the BRIDGE project,
+including:
+
+- ``BRIDGE``: a multimodal fusion network that integrates token embeddings, structure,
+  motif priors, biochemical features, and a graph branch derived from token-to-token
+  adjacency (e.g., attention).
+- ``ADPNet`` / ``ADPNetblock``: an Adaptive Pyramidal Network backbone used as the final
+  classifier head.
+- ``multiscaleKAN``: a multi-path KAN-based feature extractor used per modality.
+
+Who this is for
+---------------
+This module is intended for users who:
+
+- want to instantiate the BRIDGE model architecture in PyTorch,
+- run training/inference with precomputed modalities aligned to the same token axis,
+- understand or modify the modality fusion and graph construction logic.
+
+It is not a standalone dataset/preprocessing script; the caller is responsible for
+preparing tensors with the correct shapes and alignment.
+
+Key dependencies
+----------------
+- ``torch`` / ``torch.nn`` / ``torch.nn.functional``
+- ``torch_geometric.nn.GCNConv`` (PyG)
+- Project-local layers:
+  - ``utils.conv_layer.Conv1d`` and ``utils.conv_layer.SimpleConvKAN_1layer``
+  - ``utils.resnet`` (imported with ``*`` in this file)
+
+Input/Output conventions
+------------------------
+BRIDGE expects **channel-first** tensors and a shared token length ``L`` across modalities.
+
+Common symbols
+    - ``B``: batch size
+    - ``L``: token length per sequence (often fixed to ``101`` in this project)
+    - ``M``: motif length (may differ from ``L``)
+    - ``S``: number of structure feature channels (here structure is provided as 1 channel)
+
+Main forward signature
+    ``BRIDGE.forward(bert_embedding, attn, structure, motif, biochem) -> logits``
+
+Inputs
+    ``bert_embedding``
+        Token-aligned Transformer embeddings, shape ``(B, 512, L)``.
+
+    ``attn``
+        Token-to-token adjacency source, shape ``(B, L, L)``.
+        Edges are constructed by taking non-zero entries via ``.nonzero()``.
+        This tensor should therefore be adjacency-like (sparse preferred).
+
+    ``structure``
+        Token-aligned structure features, shape ``(B, 1, L)``.
+
+    ``motif``
+        Motif prior scores, shape ``(B, 1, M)``. This branch is projected and then
+        padded inside ``forward`` to match the fixed target length (currently ``101``).
+
+    ``biochem``
+        Token-aligned biochemical features, shape ``(B, 99, L)``.
+
+Output
+    A single logit per example, shape ``(B, 1)`` (from ``ADPNet`` classifier).
+
+Architecture summary
+--------------------
+1) Graph branch (PyG GCN)
+    - Node features originate from ``bert_embedding`` tokens.
+    - Edge list (``edge_index``) is derived from ``attn[i].nonzero()`` per sample.
+    - Graph output channels: ``512 -> 32`` then reshaped back to ``(B, 32, L)``.
+
+2) Per-modality convolution + multiscale KAN
+    - Embedding: ``512 -> 256`` then ``multiscaleKAN(256 -> 128)``
+    - Structure: ``1 -> 128`` then ``multiscaleKAN(128 -> 64)``
+    - Motif: ``1 -> 64`` then ``multiscaleKAN(64 -> 32)`` then pad to length ``101``
+    - Biochem: ``99 -> 32`` then ``multiscaleKAN(32 -> 16)``
+
+3) Fusion + ADPNet
+    All branches are concatenated along channels and fed into ``ADPNet``:
+
+    - GCN branch: 32 channels
+    - Embedding branch: (depends on ``multiscaleKAN`` concat rule; see note below)
+    - Structure branch: ...
+    - Motif branch: ...
+    - Biochem branch: ...
+
+    The concatenated tensor is expected to match the ``ADPNet(filter_num=512, ...)``
+    input channel count. If you change any branch widths, you must keep this consistent.
+
+.. important::
+   **Channel arithmetic and ``multiscaleKAN`` behavior**
+
+   ``multiscaleKAN`` returns ``torch.cat([x0, x1], dim=1) + x``. This implies:
+
+   - The concatenated tensor ``cat([x0, x1])`` must have the same channel dimension as ``x``
+     for the residual addition to be valid.
+   - If you modify ``in_channel`` or ``out_channel``, ensure shapes remain compatible.
+
+   If you encounter shape errors, verify the output channel sizes of
+   ``SimpleConvKAN_1layer`` and the intended residual path.
+
+   **Graph construction and batching**
+
+   This implementation builds edges by concatenating per-sample ``edge_index`` tensors:
+
+   - ``edge_index`` is created from each ``attn[i].nonzero()`` and concatenated along ``dim=1``.
+   - Node features are flattened to ``(B*L, 512)``.
+
+   For correct batching in PyG, edges from sample ``i`` must reference nodes in the range
+   ``[i*L, (i+1)*L)``. If your ``edge_index`` is not offset per sample, edges from different
+   samples may incorrectly connect across the batch.
+
+   If you see unexpected behavior, consider using ``torch_geometric.data.Batch`` utilities
+   or offset indices by ``i * L`` when concatenating.
+
+How to use
+----------
+Instantiate and run a forward pass (example shapes only):
+
+.. code-block:: python
+
+    import torch
+    from my_module import BRIDGE
+
+    B, L, M = 2, 101, 81
+    model = BRIDGE()
+
+    bert_embedding = torch.randn(B, 512, L)
+    attn = (torch.rand(B, L, L) > 0.95).to(torch.int)   # sparse-ish adjacency
+    structure = torch.randn(B, 1, L)
+    motif = torch.randn(B, 1, M)
+    biochem = torch.randn(B, 99, L)
+
+    logits = model(bert_embedding, attn, structure, motif, biochem)  # (B, 1)
+
+Notes and caveats
+-----------------
+- Input alignment:
+  All token-aligned modalities must share the same ``L``. Any truncation/padding should be
+  handled consistently in preprocessing.
+
+"""
+
 from utils.resnet import *
 from math import log
 import torch
@@ -152,7 +298,7 @@ class BRIDGE(nn.Module):
             which is enforced by data preprocessing and padding/truncation outside this module.
 
     Modalities:
-        1) Transformer embeddings (512 channels)      -> conv_bert -> multiscaleKAN
+        1) Transformer embedding    s (512 channels)      -> conv_bert -> multiscaleKAN
         2) Structure profiles (1 channel)            -> conv_str  -> multiscaleKAN
         3) Motif scores (1 channel, length M)        -> conv_motif-> multiscaleKAN -> pad to length 101
         4) Biochemical features (99 channels)        -> conv_biochem -> multiscaleKAN

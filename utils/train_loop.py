@@ -1,3 +1,131 @@
+"""
+Training and evaluation loops for BRIDGE-style binary classification.
+
+This module contains thin PyTorch training/validation utilities used by the BRIDGE
+pipeline. It implements:
+
+- :func:`train`:
+  One-epoch training loop with gradient clipping and running metric aggregation.
+- :func:`validate`:
+  Evaluation loop that returns dataset-level metrics plus concatenated labels/probabilities.
+- :func:`validate2`:
+  Inference-only loop that returns probabilities (sigmoid applied), **no labels** required.
+- :func:`validate_without_sigmoid`:
+  Inference-only loop that returns **raw outputs** (no sigmoid), useful for logits or
+  already-probabilistic models.
+
+Who this module is for
+----------------------
+- Users training BRIDGE (or BRIDGE-compatible) binary classifiers.
+- Developers who want a simple, reproducible training loop consistent with the paper/repo.
+
+Model I/O contract
+------------------
+The functions here assume the model signature is::
+
+    logits = model(x, attn, s, motif, plfold)
+
+where each input is batch-first (``B`` is batch size). The model output is assumed to be
+a **logit** (or logit-like score) per sample.
+
+- Expected output shape: ``(B,)`` or ``(B, 1)``
+- Probabilities are computed as ``torch.sigmoid(logits)`` when metrics are computed.
+
+If your model already outputs probabilities, prefer :func:`validate_without_sigmoid`
+(or adjust this module to avoid applying sigmoid twice).
+
+DataLoader batch conventions
+----------------------------
+Two batch formats are supported depending on the function:
+
+**Training / labeled evaluation** (:func:`train`, :func:`validate`)
+    Each batch from the loader must be a 6-tuple::
+
+        (x0, x00, x000, x0000, x00000, y0)
+
+    with the following semantics::
+
+        x0      -> x      : Transformer / RBPformer features
+        x00     -> attn   : attention / adjacency-like tensor (for graph branch)
+        x000    -> s      : structure tensor
+        x0000   -> motif  : motif tensor
+        x00000  -> plfold : biochemical features tensor
+        y0      -> y      : binary labels (0/1)
+
+**Inference only** (:func:`validate2`, :func:`validate_without_sigmoid`)
+    Each batch must be a 5-tuple (no labels)::
+
+        (x0, x00, x000, x0000, x00000)
+
+Tensor dtypes and device placement
+----------------------------------
+All inputs are converted to ``float`` and moved to ``device``. Labels are moved to
+``device`` and cast to float for loss computation. For metrics, labels are converted to
+CPU integer arrays and predictions to CPU float arrays.
+
+Metrics
+-------
+Metrics are computed via :class:`utils.metrics.MLMetrics` with ``objective="binary"``.
+Internally, this uses::
+
+    prob = sigmoid(logits)
+
+and computes accuracy / ROC-AUC / PR-AUC / F1 / MCC plus confusion counts.
+
+The training loop calls::
+
+    met.update(y_np, p_np, [loss.item()])
+
+so the mean loss for the epoch is tracked as an extra field appended to the metric vector.
+
+Important behavior and caveats
+------------------------------
+Skipping degenerate batches (train only)
+    :func:`train` **skips** batches where labels are single-class:
+
+    - all-negative: ``y0.sum() == 0``
+    - all-positive: ``y0.sum() == batch_size``
+
+    This means:
+    - those batches do not contribute to optimization updates,
+    - and do not contribute to metric aggregation.
+
+    .. warning::
+       This behavior is only correct if your training sampling strategy can produce
+       single-class batches and you explicitly want to skip them. If you need every
+       sample to contribute to training, remove this condition or ensure balanced batching.
+
+Gradient clipping
+    :func:`train` applies ``torch.nn.utils.clip_grad_norm_(model.parameters(), 5)`` each step.
+    Adjust the max-norm if you change optimizer/loss scaling.
+
+Shape alignment
+    ``criterion(output, y)`` must be valid; in practice, ensure ``y`` is shaped like
+    ``output`` (e.g., both ``(B, 1)``). If your model outputs ``(B,)`` but labels are
+    ``(B, 1)``, you may want to ``y = y.view_as(output)`` (or squeeze) upstream.
+
+Example
+-------
+.. code-block:: python
+
+    from torch.nn import BCEWithLogitsLoss
+    from torch.optim import Adam
+
+    model = BRIDGE(...).to(device)
+    criterion = BCEWithLogitsLoss()
+    optimizer = Adam(model.parameters(), lr=1e-4)
+
+    # one epoch
+    met_train = train(model, device, train_loader, criterion, optimizer, batch_size=64)
+
+    # evaluation
+    met_val, y_val, p_val = validate(model, device, val_loader, criterion)
+
+    # inference only
+    p_test = validate2(model, device, test_loader_no_labels, criterion)
+
+"""
+
 from __future__ import print_function
 from tqdm import tqdm
 import numpy as np

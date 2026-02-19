@@ -1,4 +1,6 @@
-## Model
+# User
+
+## Utils
 
 ```{eval-rst}
 .. autosummary::
@@ -19,4 +21,14 @@
    utils.utils
    utils.variant
    utils.visualize
+```
+
+## Main
+
+```{eval-rst}
+.. autosummary::
+   :toctree: reference/
+   :nosignatures:
+
+   main
 ```

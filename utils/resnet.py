@@ -1,3 +1,84 @@
+"""
+(Deprecated) Residual and Squeeze-and-Excitation blocks kept for backward compatibility.
+
+This module defines a small set of PyTorch building blocks that were used in earlier
+experiments (or in alternative backbones) but are **not** used by the current BRIDGE
+implementation.
+
+.. warning::
+   Deprecated / unused in BRIDGE
+
+   The current BRIDGE model does not import or rely on any classes in this file.
+   This module is kept only to support older checkpoints/scripts and to preserve
+   reproducibility of legacy experiments. New code should not depend on it.
+
+What is inside
+--------------
+Squeeze-and-Excitation (SE) gates
+    ``SEBlock``:
+        1D SE gate operating on tensors shaped ``(B, C, L)`` using ``AdaptiveAvgPool1d(1)``.
+        Returns the channel gate shaped ``(B, C, 1)`` (note: this implementation returns the
+        gate itself, not ``x * gate``; multiplication is expected to be done by the caller).
+
+    ``SEBlock_``:
+        2D SE gate operating on tensors shaped ``(B, C, H, W)`` using ``AdaptiveAvgPool2d(1)``.
+        Returns the channel gate shaped ``(B, C, 1, 1)``.
+
+Residual bottleneck-style blocks
+    ``ResidualBlock1D`` and ``ResidualBlock2D``:
+        Standard residual blocks with three convolutions:
+        ``1x1 -> kxk -> 1x1`` plus BatchNorm and ReLU. Optional projection shortcut
+        (``downsample=True``) to match shapes.
+
+    ``ResidualBlock1D_`` and ``ResidualBlock2D_``:
+        Larger-expansion variants (different channel expansion factors). These were used in
+        some earlier architectures and may not match the current project's channel layout.
+
+Input / output conventions
+--------------------------
+All blocks are channel-first:
+
+- 1D blocks expect ``x`` shaped ``(B, C, L)``.
+- 2D blocks expect ``x`` shaped ``(B, C, H, W)``.
+
+The residual blocks preserve spatial dimensions when stride=1 and padding is chosen
+appropriately (as implemented). Channel dimensions may change due to expansion, in which
+case the projection shortcut is applied.
+
+How to use (legacy only)
+------------------------
+Example: apply a residual block to a 1D feature map:
+
+.. code-block:: python
+
+    import torch
+    from legacy_blocks import ResidualBlock1D
+
+    x = torch.randn(8, 64, 101)  # (B, C, L)
+    block = ResidualBlock1D(planes=64, downsample=True)
+    y = block(x)
+
+Example: SE gate (note it returns the gate):
+
+.. code-block:: python
+
+    from legacy_blocks import SEBlock
+
+    x = torch.randn(8, 64, 101)
+    gate = SEBlock(channel=64)(x)      # (8, 64, 1)
+    y = x * gate                        # caller multiplies
+
+Notes and caveats
+-----------------
+- Naming:
+  Classes with a trailing underscore (``*_``) are alternative variants and are not
+  guaranteed to be API-stable.
+- SE behavior:
+  ``SEBlock`` / ``SEBlock_`` return only the gating tensor (sigmoid outputs), not the
+  gated activations. This is easy to misread if you expect "SE block" to return ``x * gate``.
+
+"""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

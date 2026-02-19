@@ -1,3 +1,143 @@
+"""
+Hand-crafted sequence feature encoders.
+
+This module implements a collection of classical, hand-engineered feature encodings
+for RNA/DNA sequences, producing a fixed-length per-position feature matrix.
+It is mainly used to generate the 99-channel biochemical/k-mer feature tensor consumed
+by BRIDGE (the ``biochem`` input branch) and related baselines.
+
+The encodings here are *deterministic* and do not require model parameters.
+
+Who this is for
+---------------
+- Users who need to convert raw nucleotide sequences into BRIDGE-compatible
+  biochemical/k-mer features.
+- Pipelines that prepare ``biochem`` tensors for training/inference.
+- Researchers who want to reproduce or inspect the exact feature definitions
+  used in the project.
+
+This module is not a general FASTA parser and does not perform padding/truncation checks
+beyond the fixed-size arrays it allocates.
+
+Key outputs
+-----------
+The main outputs are produced by:
+
+- ``dealwithdata(protein)``:
+  Reads paired dataset files and returns a batch tensor.
+- ``dealwithdata2(seq)``:
+  Encodes a single sequence and returns a batch of size 1.
+
+Both return a NumPy array of shape ``(N, 101, 99)`` (or ``(1, 101, 99)`` for single input).
+
+Feature definition (per position)
+--------------------------------
+All features are aligned to the same position axis of length ``101``. The final feature
+vector dimension is ``99``, constructed as:
+
+1) Base encoding + padding indicator (3 dims) via ``processFastaFile``:
+    - A → ``[1, 1, 1]``
+    - U → ``[0, 0, 1]``
+    - C → ``[0, 1, 0]``
+    - G → ``[1, 0, 0]``
+    - padded positions (i >= seq_length) set the last channel to 1 (padding flag)
+
+   Shape: ``(101, 3)``
+
+2) Nucleotide density (ND, 1 dim) via ``nd``:
+   Running frequency of the nucleotide observed at each position.
+
+   Shape: ``(101,)`` (later combined to ``(101, 1)`` during stacking)
+
+3) Dinucleotide physicochemical properties (DPCP, 11 dims) via ``dpcp``:
+   A fixed 11-dimensional vector per dinucleotide at position i (for seq[i:i+2]).
+   The implementation fills positions ``0..len(seq)-2`` and leaves the last position(s) as zeros.
+   In ``dealwithdata`` / ``dealwithdata2``, DPCP is normalized by dividing by 101.
+
+   Shape: ``(101, 11)``
+
+4) Positional k-mer frequency tensors via ``coden`` for k=1,2,3:
+   - k=1 vocabulary size 4
+   - k=2 vocabulary size 16
+   - k=3 vocabulary size 64
+
+   IMPORTANT: ``coden`` assigns the *global count* of the k-mer (across the entire sequence)
+   to the row corresponding to its start position, not a one-hot indicator. Counts are
+   normalized by dividing by 100.
+
+   Shapes:
+     - k=1: ``(101, 4)``
+     - k=2: ``(101, 16)``
+     - k=3: ``(101, 64)``
+   Concatenated: ``(101, 84)``
+
+Final concatenation
+-------------------
+The final per-sequence matrix is:
+
+- ``[base(3) + ND(1) + DPCP(11)]`` → ``(101, 15)``
+- concatenate k-mers ``(101, 84)``
+- total: ``(101, 99)``
+
+Input conventions and normalization
+-----------------------------------
+Alphabet normalization
+    Most functions expect an RNA alphabet ``{A, U, C, G}``. When encoding:
+
+    - DNA ``T`` is converted to RNA ``U`` (``T → U``).
+
+Fixed length assumption
+    Many arrays are allocated with a fixed first dimension of ``101``.
+    This module assumes sequences are at most 101 nt (or that upstream code ensures this).
+    If sequences are longer than 101, encoders that index by position (e.g., ``nd``) may fail.
+
+Dataset file assumption (for ``dealwithdata``)
+----------------------------------------------
+``dealwithdata(protein)`` reads:
+
+- ``./dataset/{protein}_pos.fa``
+- ``./dataset/{protein}_neg.fa``
+
+and assumes a simple FASTA-like layout where each record spans **3 lines**:
+
+- line i   : header (ignored)
+- line i+1 : sequence (used)
+- line i+2 : extra line (ignored; may be blank/structure/etc.)
+
+If your FASTA uses the standard 2-line format, you must adapt this reader.
+
+How to use
+----------
+Encode a single sequence (inference / interactive):
+
+.. code-block:: python
+
+    from features import dealwithdata2
+    x = dealwithdata2("ACGTACGTACGT")   # returns shape (1, 101, 99)
+
+Encode a dataset by protein id:
+
+.. code-block:: python
+
+    from features import dealwithdata
+    X = dealwithdata("RBFOX2")          # reads ./dataset/RBFOX2_pos.fa and _neg.fa
+    # X has shape (N, 101, 99)
+
+Notes and caveats
+-----------------
+- Fixed length 101:
+  The encoders allocate arrays of length 101 and do not truncate explicitly.
+  If ``len(seq) > 101``, functions like ``nd`` will index out of range. Ensure upstream
+  padding/truncation to 101.
+- ``coden`` semantics:
+  The positional k-mer matrices encode *global counts at each position* (scaled by /100),
+  not one-hot presence. This is intentional but easy to misinterpret.
+- DPCP lookup:
+  ``dpcp`` expects only valid dinucleotides over A/U/C/G. After normalization, ensure
+  no other characters remain or dictionary lookup will fail.
+
+"""
+
 import numpy as np
 import collections
 
@@ -346,7 +486,7 @@ def dealwithdata(protein):
         for i in range(0, len(lines), 3):
             seq_line = lines[i + 1].strip()
 
-            # Normalize to RNA alphabet; replace ambiguous base 'N' with 'A'
+            # Normalize to RNA alphabet
             seq_line = seq_line.replace('T', 'U').replace('N', 'A')
 
             # Base encoding with padding indicator: (101, 3)

@@ -1,3 +1,120 @@
+"""
+Secondary-structure feature utilities: RNAplfold profiles and per-base icSHAPE scores.
+
+This module provides two independent ways to obtain "structure" inputs aligned to nucleotide
+positions for downstream models (e.g., BRIDGE):
+
+1) RNAplfold-derived multi-channel profiles (P/E/H/I/M)
+   ----------------------------------------------------
+   Via :func:`generateStructureFeatures`, this module can run external RNAplfold wrapper
+   executables to compute loop-type probabilities per position and parse them into a tensor
+   shaped ``(N, L, 5)``.
+
+   Channels (column order in the returned array):
+   - ``P``: pairedness probability (computed as residual probability mass)
+   - ``H``: hairpin-loop probability
+   - ``I``: internal-loop probability
+   - ``M``: multi-loop probability
+   - ``E``: external-region probability
+
+   The combined profile is cached on disk and parsed by :func:`read_combined_profile`.
+
+2) Per-base structure reactivity strings (icSHAPE / "icshape")
+   -----------------------------------------------------------
+   Via :func:`build_structure_tensor`, this module can convert per-sequence structure strings
+   such as icSHAPE reactivity tracks into a padded numeric tensor shaped ``(N, 1, L)``.
+
+   In this representation, each sequence has a **single** structure channel where the i-th
+   value corresponds to the i-th nucleotide position (same length/alignment as the sequence).
+
+   The typical upstream format is a comma-separated string, for example::
+
+       "0.12,0.03,0.50,0.10,..."
+
+   This is referred to as "icshape" in some parts of the codebase.
+
+Who this is for
+---------------
+- Users preparing token-aligned structure inputs for training/inference.
+- Developers maintaining preprocessing and cache behavior.
+
+Input / output conventions
+--------------------------
+Token alignment
+    All structure tensors produced here are position-aligned. The caller is responsible for
+    ensuring that the chosen ``L`` matches the sequence length convention used elsewhere
+    (e.g., fixed-length 101 in many BRIDGE pipelines).
+
+RNAplfold path (multi-channel)
+    - Input: a FASTA file path ``dataset_path`` readable by external wrapper executables.
+    - Output: ``np.ndarray`` of shape ``(N, L, 5)`` and ``dtype=float``.
+
+icSHAPE path (single-channel)
+    - Input: ``structs`` is a list of comma-separated numeric strings, one per sequence.
+    - Output: ``np.ndarray`` of shape ``(N, 1, max_length)`` (float64 by NumPy default).
+    - Length constraint: each string must contain exactly ``max_length`` comma-separated values.
+
+External dependency (RNAplfold only)
+------------------------------------
+:func:`run_RNA` uses ``os.system`` to invoke four wrapper executables under ``script_path``:
+
+- ``E_RNAplfold``, ``H_RNAplfold``, ``I_RNAplfold``, ``M_RNAplfold``
+
+These wrappers are expected to:
+- read FASTA from stdin (``< fasta_path``)
+- write two-line-per-record profiles to ``*_profile.txt``
+
+.. warning::
+   If these executables are missing or not executable, the RNAplfold path will fail.
+
+How to use
+----------
+RNAplfold multi-channel features:
+
+.. code-block:: python
+
+    feats = generateStructureFeatures(
+        dataset_path="inputs.fa",
+        script_path="path/to/wrappers",
+        basic_path="workdir/struct_cache/",
+        W=101, L=101, u=1,
+        dataset_name="my_dataset"
+    )
+    # feats: (N, L, 5) with columns [P, H, I, M, E] after parsing
+
+icSHAPE / icshape single-channel tensor:
+
+.. code-block:: python
+
+    structs = [
+        "0.1,0.2,0.3,0.4",
+        "0.0,0.5,0.5,0.2",
+    ]
+    x = build_structure_tensor(structs, max_length=4)
+    # x: (2, 1, 4)
+
+Important notes / caveats
+-------------------------
+- These two structure representations are **not interchangeable**:
+  RNAplfold returns 5 loop/pairedness channels, while icSHAPE returns a single per-base score.
+
+- Pairedness computation (RNAplfold):
+  ``P = 1 - E - H - I - M`` assumes the four probabilities sum to ``<= 1`` per position.
+  If they sum to > 1 (numerical issues or wrapper semantics), P may become negative.
+
+- Cache path check mismatch (behavior preserved):
+  ``generateStructureFeatures`` checks for ``basic_path + "/combined_profile.txt"`` but writes
+  to ``<basic_path>/<dataset_name>/combined_profile.txt``. Ensure your cache layout matches,
+  or adjust the check if you standardize caching.
+
+- Parsing of icSHAPE strings:
+  :func:`build_structure_tensor` does not trim whitespace or trailing commas. Upstream strings
+  should be clean (e.g., no trailing comma). A mismatch in value count will raise an error
+  (or fail assignment/broadcasting).
+
+"""
+
+
 import argparse
 import os
 import re

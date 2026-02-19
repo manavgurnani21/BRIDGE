@@ -1,3 +1,88 @@
+"""
+Convolutional building blocks used across BRIDGE and related models.
+
+This module provides lightweight wrappers around common 1D/2D convolution patterns and
+a KAN-based 1D convolution layer used in BRIDGE experiments:
+
+- ``Conv2d``: ``nn.Conv2d`` + optional ``BatchNorm2d`` + optional ``ReLU`` + dropout.
+- ``Conv1d``: ``nn.Conv1d`` + optional ``BatchNorm1d`` + optional ``ReLU`` + dropout.
+- ``SimpleConvKAN_1layer``: a 1D convolution block built on ``FastKANConv1DLayer`` from
+  ``torch_conv_kan`` with optional ``BatchNorm1d``.
+
+These wrappers standardize padding, normalization, and regularization so the rest of the
+project can define architectures concisely and consistently.
+
+Who this is for
+---------------
+- Users who are implementing or modifying BRIDGE/sequence CNN architectures and want
+  convenient, repeatable conv blocks.
+- Researchers comparing standard convolutions with KAN-parameterized convolutions.
+
+This module is not a training script. It assumes the caller will construct the full model,
+handle device placement, and supply properly-shaped tensors.
+
+Dependencies
+------------
+- ``torch``, ``torch.nn``, ``torch.nn.functional``
+- ``torch_conv_kan.kan_convs.FastKANConv1DLayer`` (required only for ``SimpleConvKAN_1layer``)
+
+Core conventions
+----------------
+Tensor layouts
+    - 1D conv inputs: ``(N, C_in, L)``
+    - 2D conv inputs: ``(N, C_in, H, W)``
+
+"Same" padding behavior
+    - ``Conv2d``: if ``same_padding=True``, uses
+      ``padding_h = floor((kH-1)/2)``, ``padding_w = floor((kW-1)/2)``.
+    - ``Conv1d``: if ``same_padding=True``, uses
+      ``padding = floor((k-1)/2)``.
+
+    This approximates "same" output size **when stride=1 and kernel sizes are odd**.
+    Even kernel sizes can lead to off-by-one behavior.
+
+Dropout behavior (important)
+----------------------------
+- ``Conv1d`` and ``Conv2d`` apply ``F.dropout(x, p=0.3, training=self.training)``
+  unconditionally in ``forward``. Dropout is active only in training mode.
+- ``SimpleConvKAN_1layer`` does **not** apply ``F.dropout`` in ``forward``; instead it
+  passes ``dropout=...`` into ``FastKANConv1DLayer`` (dropout is handled inside that layer).
+
+If you combine these blocks, be mindful of the total regularization strength.
+
+How to use
+----------
+Basic examples:
+
+.. code-block:: python
+
+    import torch
+    from conv_layer import Conv1d, Conv2d, SimpleConvKAN_1layer
+
+    # 1D example
+    x1 = torch.randn(8, 64, 101)          # (N, C_in, L)
+    conv1 = Conv1d(64, 128, kernel_size=(3,), same_padding=True)
+    y1 = conv1(x1)                        # (8, 128, L_out)
+
+    # 2D example
+    x2 = torch.randn(8, 16, 32, 32)       # (N, C_in, H, W)
+    conv2 = Conv2d(16, 32, kernel_size=(3, 3), same_padding=True)
+    y2 = conv2(x2)                        # (8, 32, H_out, W_out)
+
+    # KAN-based 1D conv example
+    kan = SimpleConvKAN_1layer(64, 64, kernel_size=3, grid_size=8, dropout=0.3)
+    yk = kan(x1)                          # (8, 64, L_out)
+
+Notes and caveats
+-----------------
+- Shape preservation with ``same_padding`` is guaranteed only for odd kernels and stride=1.
+- ``SimpleConvKAN_1layer`` requires ``torch_conv_kan``; if unavailable, importing this module
+  will fail. If you need graceful degradation, consider importing ``FastKANConv1DLayer``
+  inside the class or behind a try/except.
+- ``Conv1d`` / ``Conv2d`` apply dropout with fixed ``p=0.3``. If you need configurable dropout,
+  you can add a ``dropout`` argument and store it as ``self.dropout_p``.
+"""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

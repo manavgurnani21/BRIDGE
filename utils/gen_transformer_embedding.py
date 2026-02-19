@@ -1,3 +1,117 @@
+"""
+Transformer embedding and attention extraction for k-mer tokenized sequences.
+
+This module provides utilities to convert raw nucleotide sequences (RNA/DNA strings)
+into whitespace-delimited k-mer "sentences", run a HuggingFace ``BertModel`` to obtain
+token-level embeddings, and derive an attention-based token-to-token weight matrix from
+the final Transformer layer.
+
+It is primarily used to generate the two BRIDGE inputs:
+
+- ``bert_embedding``: token embeddings, typically shaped ``(B, 512, L)``
+- ``attn``: token adjacency/attention weights, typically shaped ``(B, L, L)``
+
+Who this is for
+---------------
+- Users running BRIDGE training/inference pipelines who need to build Transformer features
+  from raw sequences.
+- Developers who want to reproduce the exact embedding/attention extraction logic
+  (special-token removal, head averaging, etc.).
+
+This module is not a tokenizer trainer and does not build a k-mer vocabulary; it assumes
+``transformer_path`` points to a compatible pretrained checkpoint/tokenizer.
+
+Main entry point
+----------------
+Use ``build_Transformer_embeddings(...)`` to produce embeddings and attention weights:
+
+- loads tokenizer/model from ``transformer_path``
+- converts sequences to k-mer token strings via ``seq2kmer``
+- runs batched inference via ``rbpformer_encode_batch``
+- optionally transposes embeddings to channel-first layout
+
+Input/Output conventions
+------------------------
+k-mer tokenization
+    ``seq2kmer(seq, k)`` converts a sequence into overlapping k-mers (stride 1) separated
+    by spaces. If the raw sequence length is ``S``, the token count before special tokens
+    is ``S - k + 1``.
+
+Token lengths and array types (important)
+    Downstream code often assumes all sequences yield the same token length ``L``.
+    If token lengths differ across sequences, the returned NumPy arrays may become
+    ``dtype=object`` because ``np.array(list_of_arrays)`` cannot stack ragged arrays.
+
+    If your pipeline requires fixed ``L``, ensure upstream padding/truncation of raw
+    sequences so that all inputs have equal length (and use a consistent ``k``).
+
+Embedding shape
+    - HuggingFace returns last hidden states as ``(B, L_total, C)``, where ``L_total``
+      includes special tokens and padding.
+    - This module removes ``[CLS]`` and ``[SEP]`` by slicing ``[1 : seq_len-1]``,
+      where ``seq_len`` is computed from ``attention_mask``.
+
+Returned outputs
+    ``build_Transformer_embeddings`` returns:
+
+    - ``Transformer_embedding``:
+      - if ``transpose_to_ch_first=True``: expected shape ``(N, C, L)``
+      - else: expected shape ``(N, L, C)``
+    - ``attention_weight``:
+      attention-derived matrices aligned to token positions, expected shape ``(N, L, L)``
+
+    Here ``C`` is the Transformer hidden size (often 512 for RBPformer checkpoints).
+
+Attention extraction details
+----------------------------
+- In ``rbpformer_encode_batch`` the model is called with ``output_attentions=True``.
+- The implementation uses the **last layer** attention: ``outputs.attentions[-1]``.
+- Attention heads are averaged: ``mean(1)`` resulting in shape ``(B, L_total, L_total)``.
+- Special tokens are removed by slicing indices ``[1 : seq_len-1]``.
+
+Performance notes
+-----------------
+- ``gen_Transformer_embedding`` uses a large DataLoader batch size (2048) for throughput.
+  This may exceed GPU memory depending on ``L`` and model size. Reduce batch size if you
+  encounter out-of-memory errors.
+- Inference runs under ``torch.no_grad()`` and with ``model.eval()``.
+
+How to use
+----------
+Minimal usage (main entry point):
+
+.. code-block:: python
+
+    import torch
+    from transformer_features import build_Transformer_embeddings
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    sequences = ["ACGU..." , "ACGU..."]  # same length recommended
+
+    embeds, attn = build_Transformer_embeddings(
+        sequences=sequences,
+        transformer_path="path_or_hf_name",
+        device=device,
+        k=1,
+        transpose_to_ch_first=True,
+    )
+
+    # embeds: (N, C, L), attn: (N, L, L) if token lengths are uniform
+
+Notes and caveats
+-----------------
+- Hidden size assumptions:
+  BRIDGE often expects ``C=512``. Ensure the checkpoint at ``transformer_path`` matches
+  your model architecture (otherwise channel mismatch errors will occur downstream).
+- Tokenizer settings:
+  This code uses ``do_lower_case=False``. For nucleotide k-mers this is usually correct.
+- Ragged outputs:
+  If sequences differ in length, NumPy outputs may be ragged ``dtype=object``. Handle
+  padding/truncation before calling this module if you need dense tensors.
+- Device placement:
+  The model is moved to ``device``; input tensors are also moved accordingly.
+"""
+
 from typing import Sequence, Tuple
 import numpy as np
 import torch

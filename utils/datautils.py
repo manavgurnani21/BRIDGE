@@ -1,3 +1,109 @@
+"""
+General I/O and preprocessing utilities for BRIDGE-style datasets.
+
+This module collects small helper functions used across data preparation and
+experiment scripts. The active functions focus on:
+
+- filesystem helpers (creating output folders, listing dataset files)
+- simple run bookkeeping (checking whether an expected results file is complete)
+- sequence preprocessing (DNA/RNA → one-hot encoding with optional centered padding)
+- dataset splitting (simple stratified train/validation split for binary targets)
+- lightweight formatting helpers (array → string)
+
+Who this is for
+---------------
+- Users running BRIDGE-related scripts that need quick dataset utilities.
+- Developers who want a single place for shared preprocessing functions.
+
+Dependencies
+------------
+- Standard library: ``os``, ``sys``, ``copy.deepcopy``
+- Third-party: ``numpy``, ``h5py`` (imported here but only required by legacy/extended loaders)
+
+API overview
+------------
+Filesystem
+    ``make_directory(path, foldername, verbose=1)``
+        Ensures ``path`` exists, then creates/returns ``os.path.join(path, foldername)``.
+
+    ``get_file_names(dataset_path)``
+        Returns all filenames in ``dataset_path`` with extension exactly ``.h5`` (not full paths).
+
+Bookkeeping
+    ``finished(path, line_num)``
+        Returns True if ``path`` exists and contains exactly ``line_num`` lines.
+
+Formatting
+    ``mat2str(m)``
+        Converts a 1D/2D numeric array into a comma-separated string with ``'%.3f,'`` formatting
+        (note: a trailing comma is included).
+
+Sequence preprocessing
+    ``convert_one_hot(sequence, max_length=None)``
+        Converts a list of DNA/RNA strings into one-hot arrays with channel order
+        ``A, C, G, (U/T)``. Optional centered zero-padding to ``max_length``.
+
+Dataset splitting
+    ``split_dataset(data, targets, valid_frac=0.2)``
+        Performs a simple stratified split using a binary threshold on targets:
+        negatives: ``targets < 0.5``, positives: ``targets >= 0.5``.
+
+Input/Output conventions
+------------------------
+One-hot encoding
+    - Input: ``sequence`` is a ``list[str]`` (each sequence is uppercased internally).
+    - Output: ``np.ndarray`` of shape ``(N, 4, L)`` or ``(N, 4, max_length)``.
+    - Channel order:
+      - channel 0: ``A``
+      - channel 1: ``C``
+      - channel 2: ``G``
+      - channel 3: ``U`` or ``T``
+
+Padding behavior (``convert_one_hot``)
+    If ``max_length`` is provided, sequences are centered and padded symmetrically:
+
+    - ``offset1 = (max_length - seq_length) // 2``
+    - ``offset2 = max_length - seq_length - offset1``
+
+    The function does not truncate sequences longer than ``max_length``; in that case
+    negative offsets would lead to unexpected behavior. Ensure ``max_length >= len(seq)``
+    upstream or add explicit truncation.
+
+Split behavior (``split_dataset``)
+    - ``data`` is assumed to be indexed by sample along axis 0: ``(N, ...)``.
+    - ``targets`` must align with ``data`` along axis 0 (shape ``(N,)`` or ``(N, 1)``).
+    - Randomness comes from ``np.random.permutation``; set ``np.random.seed(...)`` upstream
+      for reproducibility.
+
+How to use
+----------
+Convert sequences to one-hot:
+
+.. code-block:: python
+
+    from utils import convert_one_hot
+    seqs = ["ACGT", "AUGU"]   # 'U' is treated like 'T' in the 4th channel
+    X = convert_one_hot(seqs, max_length=10)   # shape (2, 4, 10)
+
+Split into train/test:
+
+.. code-block:: python
+
+    import numpy as np
+    from utils import split_dataset
+
+    X = np.random.randn(100, 4, 101)
+    y = (np.random.rand(100, 1) > 0.5).astype(np.float32)
+
+    (X_tr, y_tr), (X_te, y_te) = split_dataset(X, y, valid_frac=0.2)
+
+Notes and caveats
+-----------------
+- Character handling in ``convert_one_hot``:
+  Characters other than ``A/C/G/U/T`` are silently ignored (left as all-zeros). If you need
+  explicit handling of ``N`` or other IUPAC codes, extend the implementation.
+"""
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function

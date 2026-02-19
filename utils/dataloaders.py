@@ -1,3 +1,110 @@
+"""
+FASTA + structure dataset readers (3-line records).
+
+This module implements strict parsers for a simple FASTA-like format where each record
+contains:
+
+1) a header line starting with ``>``
+2) a nucleotide sequence line
+3) a structure-score line containing comma-separated numeric tokens (one per base)
+
+It is designed for classification datasets where each record has both sequence and
+per-position structure features and where labels are assigned at the file level
+(e.g., all sequences in one file are negatives, the other are positives).
+
+Who this is for
+---------------
+- Users preparing binary classification datasets from paired ``(neg, pos)`` files.
+- Pipelines that need both sequence strings and aligned per-base structure scores
+  (kept as raw strings for downstream parsing).
+
+This module does not build tensors, tokenize sequences, or pad/truncate lengths; it only
+reads and validates file structure.
+
+File format specification
+-------------------------
+Record layout (strict)
+    Each record occupies exactly **3 non-empty lines**:
+
+    1. Header line starting with ``>``
+    2. Sequence line (uppercase recommended)
+    3. Structure line: comma-separated tokens, one per sequence position
+
+Example
+    .. code-block:: text
+
+        >record_001 optional metadata
+        ACGTACGT
+        0.12,0.03,0.50,0.10,0.22,0.18,0.07,0.09
+
+Parsing rules
+    - Blank/empty lines are ignored.
+    - The total number of non-empty lines must be a multiple of 3.
+    - Header lines must begin with ``>``.
+    - Sequence validation uses the regex ``r"[ACGTUN]+"`` (uppercase only):
+      accepts DNA (``T``), RNA (``U``), and ``N`` for unknown.
+    - Structure lines are *not* converted to floats here. They are returned as raw strings.
+      A length check is performed by comparing:
+      ``len(sequence)`` vs. ``len(struct_str.split(","))``.
+
+Returned data conventions
+-------------------------
+The readers return:
+
+- ``sequences``: sequence strings (variable length allowed across records).
+- ``structs``: raw structure strings (comma-separated; length matches each sequence).
+- ``labels``: float32 array of shape ``(N, 1)`` with file-level constant label values.
+
+Function summary
+----------------
+``read_fasta_with_struct_single(path, label_val)``
+    Reads one file and assigns the same ``label_val`` to all records.
+
+``read_fasta(neg_path, pos_path)``
+    Reads a negative file (label 0) and a positive file (label 1), then concatenates:
+
+    - ordering is ``[pos] + [neg]`` by default
+    - outputs are ``np.ndarray`` objects:
+      ``sequences`` and ``structs`` have dtype ``object``
+
+How to use
+----------
+Read one file:
+
+.. code-block:: python
+
+    from readers import read_fasta_with_struct_single
+    seqs, structs, y = read_fasta_with_struct_single("neg.fa", label_val=0)
+
+Read paired neg/pos files:
+
+.. code-block:: python
+
+    from readers import read_fasta
+    sequences, structs, labels = read_fasta("neg.fa", "pos.fa")
+    # sequences: (N,), dtype object
+    # structs:   (N,), dtype object
+    # labels:    (N, 1), float32
+
+Parse structure strings into numeric arrays downstream:
+
+.. code-block:: python
+
+    import numpy as np
+    struct_vec = np.array(structs[0].split(","), dtype=np.float32)  # shape (L,)
+
+Notes and caveats
+-----------------
+- Uppercase-only validation:
+  If sequences may contain lowercase letters, either uppercase them before writing the file
+  or modify the reader to apply ``seq = seq.upper()`` prior to validation.
+- Variable-length sequences:
+  This reader allows different record lengths across the file(s) as long as each record’s
+  sequence length matches its structure-token count. If your model requires fixed length,
+  pad/truncate consistently downstream.
+
+"""
+
 from typing import List, Tuple
 import numpy as np
 import re

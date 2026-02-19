@@ -1,3 +1,156 @@
+"""
+Evaluation metrics utilities for BRIDGE experiments.
+
+This module provides a small collection of metric functions and a lightweight
+accumulator class for tracking classification/regression-style metrics across
+training/evaluation steps. It is primarily used by training loops to compute:
+
+- scalar summary metrics (accuracy, ROC-AUC, PR-AUC, F1, MCC)
+- confusion-matrix counts (TP, TN, FP, FN)
+- correlation/fit metrics for regression-like objectives (Pearson r, R^2-like score, slope)
+
+Who this is for
+---------------
+- Users running BRIDGE training / validation scripts who need consistent metric reporting.
+- Developers extending objectives or adding new tracked scalars (e.g., loss) via the accumulator.
+
+This module assumes NumPy arrays as inputs and relies on scikit-learn for curve metrics.
+
+Key dependencies
+----------------
+- ``numpy``
+- ``scikit-learn``: ``roc_curve``, ``auc``, ``precision_recall_curve``, ``accuracy_score``,
+  ``confusion_matrix``, ``f1_score``, ``matthews_corrcoef``
+- ``scipy.stats`` for Pearson correlation
+
+Public API
+----------
+The module exports (see ``__all__``):
+
+- ``pearsonr(label, prediction)``
+- ``rsquare(label, prediction)``
+- ``accuracy(label, prediction)``
+- ``roc(label, prediction)``
+- ``pr(label, prediction)``
+- ``calculate_metrics(label, prediction, objective)``
+
+It also defines an accumulator class:
+
+- ``MLMetrics``: stores per-step metric vectors and provides running averages/sums.
+
+Input conventions
+-----------------
+Labels and predictions
+    Most functions accept:
+
+    - binary targets: ``label`` shape ``(N,)`` or ``(N, 1)`` or ``(N, K)``
+    - predictions: same shape as labels (probabilities/scores in ``[0, 1]`` for binary)
+
+Multi-label behavior
+    For 2D inputs (``(N, K)``), metrics are computed per column and then aggregated with
+    ``np.nanmean`` / ``np.nanstd`` where applicable.
+
+Objectives in ``calculate_metrics``
+-----------------------------------
+``calculate_metrics(label, prediction, objective)`` supports:
+
+- ``"binary"`` and ``"hinge"``
+  Treats inputs as binary (or multi-label) classification.
+
+  Returns:
+  mean: ``[acc, auc_roc, auc_pr, f1, mcc, tp, tn, fp, fn]``
+  std : ``[acc_std, auc_roc_std, auc_pr_std, f1_std, mcc_std]``
+
+- ``"categorical"``
+  Treats input as multi-class with one-hot labels and predicted class probabilities.
+
+  Returns:
+  mean: begins with ``[acc, auc_roc, auc_pr]`` (macro over columns),
+        then appends per-class ROC-AUC for each column.
+  std : begins with ``[acc_std, auc_roc_std, auc_pr_std]``,
+        then appends the corresponding per-class ROC-AUC standard deviations.
+
+  Note:
+  The current implementation appends per-class ROC-AUC only (not per-class PR-AUC).
+
+- ``"squared_error"``, ``"kl_divergence"``, ``"cdf"``
+  Treated as regression-like objectives, but labels are thresholded to binary (0/1) first.
+
+  Returns:
+  mean: ``[acc, auc_roc, auc_pr, tp, tn, fp, fn, pearsonr_mean, rsquare_mean, slope_mean]``
+  std : ``[acc_std, auc_roc_std, auc_pr_std, pearsonr_std, rsquare_std, slope_std]``
+
+  Note:
+  ``pearsonr``, ``rsquare``, and ``slope`` are computed after label thresholding.
+
+Return value (important)
+------------------------
+``calculate_metrics`` returns a two-element list:
+
+- ``[mean, std]``
+
+So typical usage is:
+
+.. code-block:: python
+
+    mean, std = calculate_metrics(y_true, y_pred, objective="binary")
+
+Note that the current ``MLMetrics.update`` implementation does::
+
+    met, _ = calculate_metrics(...)
+
+which will set ``met`` to the *mean list* and ignore std.
+
+Notes on individual helpers
+---------------------------
+``pearsonr``
+    - For 1D input, returns ``[stats.pearsonr(label, prediction)]`` (a tuple inside a list).
+    - For 2D input, returns a list of coefficients (floats).
+    This asymmetry is preserved for backward compatibility.
+
+``rsquare``
+    - Computes an R^2-like score using a no-intercept fit (regression through the origin).
+      This differs from sklearn's default R^2 which fits an intercept.
+
+``roc`` / ``pr``
+    - Return both metric values and the underlying curve points for plotting.
+    - For multi-label inputs, curves are computed independently per column.
+
+``MLMetrics``
+-------------
+``MLMetrics`` stores metric vectors returned by ``calculate_metrics`` and maintains running
+average and sum. For objective ``"binary"`` / ``"hinge"``, it also exposes:
+
+- ``acc, auc, prc, f1, mcc`` from the running average
+- ``tp, tn, fp, fn`` from the running sum
+
+You may append additional scalars (e.g., loss) by passing them as ``other_lst`` to ``update``.
+
+How to use
+----------
+Compute metrics for one evaluation run:
+
+.. code-block:: python
+
+    from metrics import calculate_metrics
+    mean, std = calculate_metrics(y_true, y_prob, objective="binary")
+    acc, auc_roc, auc_pr, f1, mcc, tp, tn, fp, fn = mean
+
+Accumulate metrics across batches:
+
+.. code-block:: python
+
+    from metrics import MLMetrics
+    meter = MLMetrics(objective="binary")
+
+    for y_true, y_prob in dataloader:
+        meter.update(y_true, y_prob, other_lst=[loss_value])
+
+    print(meter.acc, meter.auc, meter.prc, meter.f1, meter.mcc)
+
+"""
+
+
 import os, sys
 import numpy as np
 from six.moves import cPickle
