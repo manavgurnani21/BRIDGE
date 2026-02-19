@@ -63,6 +63,11 @@ BRIDGE: Bridging Sequence–Structure Motifs and Genetic Variants for Genome-wid
   - [Dynamic Transfer Prediction](#3-dynamic-transfer-prediction-crosscell-type)
   - [Variant-Aware Scoring](#4-variant-aware-scoring)
   - [Motif construction](#5-motif-construction)
+- [Step-by-Step Tutorials](#step-by-step-tutorials)
+  - [Workflow Map](#workflow-map)
+    - [Core modeling workflows](#core-modeling-workflows)
+    - [variant-aware scoring workflows](#variant-aware-scoring-workflows)
+    - [Motif extraction &amp; visualization workflow](#motif-extraction--visualization-workflow)
 - [License](#license)
 - [Citation](#citation)
 - [Acknowledgements](#acknowledgements)
@@ -104,7 +109,7 @@ BRIDGE is platform-agnostic and can run on Linux, macOS, and Windows (via WSL). 
 | NVIDIA GeForce RTX 3090 | 24 GB | 580.95.05      | 13.0         |
 | NVIDIA TITAN RTX        | 24 GB | 580.95.05      | 13.0         |
 
-#### 1) Prerequisites
+### 1) Prerequisites
 
 The following table summarizes the key software dependencies and the tested versions for BRIDGE:
 
@@ -151,6 +156,7 @@ To enable GPU access inside Docker, install the
 #### Step 2: Build and run the Docker image
 
 ##### GPU users
+
 Build the image:
 
 ```bash
@@ -164,6 +170,7 @@ docker run --rm -it --gpus all bridge:gpu
 ```
 
 ##### CPU users
+
 Build the image:
 
 ```bash
@@ -175,7 +182,6 @@ Launch a container with CPU support:
 ```bash
 docker run --rm -it bridge:cpu
 ```
-
 
 ## 📂Data & Resources
 
@@ -190,9 +196,11 @@ To ensure reproducibility and ease of use, we provide all necessary resources pr
 | 🔹 Model Files   | `BRIDGE/results/model/`            | Trained BRIDGE models                         |
 
 ### Download from
+
 [figshare DOI (v2)](https://doi.org/10.6084/m9.figshare.29819843.v2)
 
 ### Verify downloaded files
+
 To guarantee data integrity and exact alignment with the reported results,
 we provide SHA256 checksums for released files, together with a verification script.
 
@@ -369,7 +377,7 @@ python variant_aware.py \
 **Flags explained**
 
 - `--variation_mode {before,after}`
-  before = score reference sequence; 
+  before = score reference sequence;
   after = score mutated sequence.
 - `--fasta_sequence_path`
   Path to the FASTA-like file to score.
@@ -481,19 +489,31 @@ python motif/Discovery_motifs.py \
 
 We provide step-by-step tutorials in the `Tutorial` folder to help users get started. Each tutorial is designed as a self-contained Jupyter notebook.
 
-### Tutorial Descriptions
+### Workflow Map
 
-#### `cell_type_specific/`
+We provide the **canonical entry point** for running BRIDGE end-to-end. Each workflow below maps a user-facing task to the recommended tutorial notebook(s), the script entry point, and the expected inputs/outputs—so you do not need to infer behavior by reading multiple scripts.
 
-- **`1.ipynb`** – ***
+#### Core modeling workflows
 
-- **`2.ipynb`** – ***
+| Task                                                     | Recommended notebook                               | Script entry point                       | Inputs                                             | Outputs                                             |
+| -------------------------------------------------------- | -------------------------------------------------- | ---------------------------------------- | -------------------------------------------------- | --------------------------------------------------- |
+| Train BRIDGE models for the RBPs in different cell lines | `docs/tutorials/notebooks/train.ipynb`           | `python main.py --train ...`           | `{DATA_FILE}_{pos,neg}.fa`, Transformer backbone | checkpoints under `results/model/` + metrics/logs |
+| Evaluate trained models on held-out data                 | `docs/tutorials/notebooks/validate.ipynb`        | `python main.py --validate ...`        | same inputs + checkpoint                           | evaluation metrics/predictions                      |
+| Dynamic cross-cell-type prediction                       | `docs/tutorials/notebooks/dynamic_predict.ipynb` | `python main.py --dynamic_predict ...` | target dataset + resolved checkpoint name          | dynamic prediction outputs/metrics                  |
 
-#### `cross_cell_type/`
+#### Variant-aware scoring workflows
 
-- **`1.ipynb`** – ***
+| Variant task                              | Recommended notebook                                           | How it maps to `variant_aware.py`                                                             | What it clarifies explicitly                                                                                                                                                                             |
+| ----------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GWAS variant scoring                      | `docs/tutorials/notebooks/GWAS_tutorial.ipynb`               | `python variant_aware.py --gwas ...` *(or default when no other pipeline flag is provided)* | Header schema → 0-based variant localization (strand-aware) → before/after allele substitution, with checkpoint resolved from the FASTA stem and scores appended per record.                           |
+| Ribosnitch scoring                        | `docs/tutorials/notebooks/Ribosnitch_tutorial.ipynb`         | `python variant_aware.py --ribosnitch ...`                                                    | Requires headers ending with two cell lines, scores all matching cell-line checkpoints, and optionally forces the “after-variation” ALT substitution before writing per-(record, model, score) output. |
+| ClinVar / TCGA / 1000G (catalog variants) | `docs/tutorials/notebooks/ClinVar_TCGA_1000G_tutorial.ipynb` | `python variant_aware.py --catalog_variants/--genomic_variants ...`                           | Specifies the required `chr:start-end(strand)` and `POS:REF>ALT` header tokens and makes strict REF checking plus optional ±1 off-by-one handling explicit in the before/after scoring output.      |
 
-- **`2.ipynb`** – ***
+#### Motif extraction & visualization workflow
+
+| Task                               | Recommended notebook                               | What it covers                                                                                                                                                                                                                                                                         |
+| ---------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Motif extraction and visualization | `docs/tutorials/notebooks/motif_discovery.ipynb` | end-to-end motif workflow: discovering motifs from attention maps, converting motif instances to MEME, Tomtom comparison to motif databases, extracting motif-related sequences, generating sequence–structure PWMs, plotting motif logos, and generating circos-style visualizations |
 
 ## 📜License
 
@@ -516,9 +536,7 @@ Unpublished yet
 
 We provide two primary channels for user support and feedback:
 
-- **GitHub Issues**  
-  For bug reports, feature requests, and usage questions. This is the preferred channel for public discussion and community-driven support.
-
-- **Contact Email**  
-  yubo23@mails.jlu.edu.cn; lixt314@jlu.edu.cn  
+- **GitHub Issues**For bug reports, feature requests, and usage questions. This is the preferred channel for public discussion and community-driven support.
+- **Contact Email**
+  yubo23@mails.jlu.edu.cn; lixt314@jlu.edu.cn
   For questions related to the paper or experimental details.
