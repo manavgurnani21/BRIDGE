@@ -1,3 +1,123 @@
+"""
+Utility helpers for prediction, attribution, and visualization of sequence (and optional structure) models.
+
+Overview
+--------
+This module collects small, practical utilities that are commonly used when working with
+PyTorch models that take nucleotide sequences (one-hot) and optionally per-position
+structure features:
+
+1) Prediction helpers
+   - `predict(...)`: run a forward pass and (optionally) convert logits -> probabilities
+     following a key-naming convention.
+   - `predict_from_sequence(...)`: encode raw sequence strings into one-hot and call `predict`.
+
+2) Attribution helpers
+   - `attribution(...)`: compute attributions for inputs using `igrads`:
+       * Integrated Gradients ("IG")
+       * Grad × Input ("grad_x_input")
+
+3) Visualization helpers
+   - `make_attribution_figure(...)`: render an (L, 4) attribution matrix as a sequence logo.
+   - `visualize_track_attribution(...)`: stack a 1D track plot + attribution logo (+ optional input logo).
+   - `visualize_attribution_only(...)`: render attribution logo only.
+
+Intended users
+--------------
+- Researchers and engineers who already have a trained PyTorch model and want:
+  (a) a lightweight prediction wrapper,
+  (b) gradient-based explanations (attributions),
+  (c) quick visual inspection via sequence logos.
+
+This is **not** a full training/evaluation framework; it is a convenience module.
+
+Dependencies
+------------
+- torch, torch.nn.functional
+- igrads (for IG / Grad×Input)
+- matplotlib
+- pandas
+- logomaker (for sequence logos)
+
+If `logomaker` is missing, plotting functions will fail. If `igrads` is missing, attribution
+functions will fail.
+
+Core data conventions
+---------------------
+Nucleotide encoding
+- Channel order is assumed to be: **['A', 'C', 'G', 'U']** in all logo/attribution plots.
+- The provided encoder uses `base2int = {'A':0, 'C':1, 'G':2, 'T':3}`.
+  This effectively treats **'T' as the 4th channel**, but plots label it as **'U'**.
+  If you work with RNA strings containing 'U', you should extend `base2int` to include
+  `'U': 3` (or pre-convert U->T) to avoid one-hot failures.
+
+Tensor shapes and dtypes
+- Sequence one-hot:
+  - unbatched: (L, 4) float32
+  - batched:   (B, L, 4) float32
+- Structure features (optional, attribution-only in this file):
+  - unbatched: (L, S) float32
+  - batched:   (B, L, S) float32
+
+Model interface expectations
+----------------------------
+This file supports **two common model styles**, but they are not fully unified:
+
+A) Sequence-only prediction models (used by `predict` / `predict_from_sequence`)
+- Expected forward signature:
+    `model(one_hot)` -> `dict[str, torch.Tensor]`
+- Output key convention (used by `_to_probs`):
+    * keys containing '_profile'            -> softmax(dim=1)
+    * keys containing '_mixing_coefficient' -> sigmoid
+  Any other keys will raise a ValueError when `to_probs=True`.
+
+B) Sequence + structure attribution models (used by `attribution`)
+- Expected forward signature:
+    `model((one_hot, structure))` -> prediction tensor (ideally scalar or reducible)
+- `attribution(...)` internally adds a batch dimension and passes:
+    `(inputs.unsqueeze(0), structure.unsqueeze(0))`
+
+IMPORTANT: Target selection for attributions
+--------------------------------------------
+`igrads.integrated_gradients(...)` / `igrads.grad_x_input(...)` typically require a clear
+target (e.g., a scalar output, a class index, or a mask). This module currently passes
+`target_mask=pred` (the raw prediction), which only works as intended if:
+
+- the model output is already a scalar per example, or
+- `igrads` interprets `target_mask` in a way that matches your output shape.
+
+If your model returns multi-dimensional outputs (profiles, multi-task heads, etc.),
+you will likely need to:
+- select a scalar objective (e.g., `pred[..., idx].sum()`),
+- or provide an explicit target index/mask compatible with your `igrads` version.
+
+Usage examples
+--------------
+(1) Prediction from raw sequence (sequence-only models)
+    >>> model = load_model(BRIDGE(), "checkpoint.pt")
+    >>> pred = model.predict_from_sequence("ACGTACGT...", to_probs=True)
+
+(2) Attribution for sequence + structure models
+    >>> seq = sequence2onehot("ACGT...").to(device)          # (L, 4)
+    >>> struct = torch.zeros(seq.shape[0], S).to(device)     # (L, S)
+    >>> attrs_seq, attrs_struct = attribution(seq, struct, model, atype="IG", steps=50)
+
+(3) Visualization
+    >>> fig = visualize_attribution_only(attrs_seq)
+    >>> fig = visualize_track_attribution(track, attrs_seq, sequence="ACGT...", title="Example")
+
+Notes and caveats
+-----------------
+- Unknown bases:
+  `sequence2int` maps unknown characters to 999, which will break `one_hot` (num_classes=4).
+  Clean or validate sequences before encoding.
+- Device placement:
+  Inputs for prediction/attribution must be on the same device as the model (CPU/GPU).
+- Gradients:
+  Attribution methods require gradients. Ensure tensors are float and that `igrads`
+  sets/uses `requires_grad` appropriately for your inputs.
+"""
+
 import igrads
 import matplotlib.pyplot as plt
 import logomaker
@@ -7,17 +127,32 @@ import torch
 
 
 def attribution(inputs, structure, model, atype='IG', steps=50):
-    """Compute sequence and structure attributions for a given model and inputs.
+    """Compute sequence/structure attributions for a PyTorch model.
 
-    Args:
-        inputs (tf.Tensor or np.ndarray): 2D (input_length, 4) tensor of onehot-encoded sequence.
-        structure (tf.Tensor or np.ndarray): 2D tensor representing the structure of the sequence.
-        model (Keras Model): Model to compute attribution for.
+    Parameters
+    ----------
+    inputs : torch.Tensor
+        One-hot encoded sequence of shape (L, 4), dtype float.
+    structure : torch.Tensor
+        Structure features of shape (L, S), dtype float.
+    model : torch.nn.Module
+        A model whose forward accepts (inputs, structure) as a tuple and returns a prediction tensor.
+    atype : {"IG", "grad_x_input"}, default="IG"
+        Attribution method: Integrated Gradients ("IG") or Grad×Input ("grad_x_input").
+    steps : int, default=50
+        Number of IG interpolation steps. Only used when atype="IG".
 
-    Returns:
-        tf.Tensor: Feature attributions for both sequence and structure.
+    Returns
+    -------
+    Any
+        Attributions returned by `igrads.*` for (inputs, structure). Typically a tuple of tensors
+        with shapes matching the inputs.
+
+    Raises
+    ------
+    ValueError
+        If `atype` is not supported.
     """
-    
     # Combine sequence and structure inputs (assuming structure is one-hot encoded or of suitable shape)
     combined_inputs = (inputs, structure)  # This could be adjusted based on model's input format
     
