@@ -21,6 +21,7 @@
    utils.utils
    utils.variant
    utils.visualize
+   utils.motif_prior.motif_prior
 ```
 
 ## Main
@@ -31,4 +32,24 @@
    :nosignatures:
 
    main
+```
+
+## Motifs
+
+```{eval-rst}
+.. autosummary::
+   :toctree: reference/
+   :nosignatures:
+
+   motif_construction.run_finetune
+```
+
+## Variants
+
+```{eval-rst}
+.. autosummary::
+   :toctree: reference/
+   :nosignatures:
+
+   variant_aware
 ```

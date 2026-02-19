@@ -15,34 +15,57 @@ Pipelines
 The behavior is selected by optional CLI flags:
 
 1) GWAS mode (default):
+
    - Activated when no other pipeline flag is provided (or when `--gwas` is set).
+
    - Uses a single BRIDGE checkpoint whose name is derived from the FASTA filename
      stem (i.e., `<model_save_path>/<fasta_stem>.pth`).
+
    - Output format (one line per record):
-       <header_without_>\tPrediction_score:<float>
+
+     .. code-block:: text
+
+        <header_without_>\tPrediction_score:<float>
 
 2) Ribosnitch mode (`--ribosnitch` / `--ribosnitches`):
+
    - For each FASTA record, extracts the last two tokens in the header as
      candidate cell lines and scores the sequence against every checkpoint in
      `--model_save_path` whose filename ends with `_<cell_line>.pth`.
+
    - If `--variation_mode=after` (or `--ribosnitch_after_variation`) is active,
      the ALT allele is substituted before scoring (strand-aware: bases are
      complemented on '-' strand).
+
    - Output format (one line per (record, checkpoint)):
-       <header_without_>\t<checkpoint_stem>\t<float>
+
+     .. code-block:: text
+
+        <header_without_>\t<checkpoint_stem>\t<float>
+
      Results are written under:
-       <ribosnitch_out_dir>/{before_mut,after_mut}/<basename(variant_out_file)>
+
+     .. code-block:: text
+
+        <ribosnitch_out_dir>/{before_mut,after_mut}/<basename(variant_out_file)>
 
 3) Variant-catalog mode (`--genomic_variants` / `--variant_catalog`):
+
    - For curated variant collections such as ClinVar / TCGA / 1000 Genomes, where
      FASTA headers include:
+
        * a region token:  chr:start-end(strand)
        * an SNV token:    POS:REF>ALT
        * model-id fields: typically "... <PROTEIN> in <CELL_LINE>"
+
    - Provides robust parsing and optional off-by-one handling when locating the
      variant within the window.
+
    - Output format matches the standalone catalog script:
-       <header_without_>\tmodel_id=<...>\tmode=<before|after>\tPrediction_score:<float>
+
+     .. code-block:: text
+
+        <header_without_>\tmodel_id=<...>\tmode=<before|after>\tPrediction_score:<float>
 
 Common inputs
 -------------
