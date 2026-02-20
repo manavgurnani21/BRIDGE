@@ -71,6 +71,7 @@ BRIDGE: Bridging Sequence–Structure Motifs and Genetic Variants for Genome-wid
 - [License](#license)
 - [Citation](#citation)
 - [Acknowledgements](#acknowledgements)
+- [User Support](#user-support)
 
 ## 🔬Overview
 
