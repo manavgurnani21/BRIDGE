@@ -37,8 +37,16 @@ Thumbs.db
 # --- Docs ---
 docs/build/
 
+# --- reproducibility large resources ---
+/reproducibility/motif_resources/
+/reproducibility/gwas_resources/
+/reproducibility/cross_cell_type/
+/reproducibility/ClinVar_TCGA_1000G_resources/
+/reproducibility/cell_type_specific/
+/reproducibility/ablation&interpretability/
+
 # Remain
-!framework.png
+!framework.jpg
 
 !/results/logs/
 !/results/metrics/

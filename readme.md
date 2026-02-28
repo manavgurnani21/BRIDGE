@@ -76,7 +76,7 @@ BRIDGE: Bridging Sequence–Structure Motifs and Genetic Variants for Genome-wid
 ## 🔬Overview
 
 <p align="center">
-  <img src="framework.png" alt="BRIDGE framework" width="80%">
+  <img src="framework.jpg" alt="BRIDGE framework" width="80%">
 </p>
 
 BRIDGE is an advanced multimodal deep learning framework for predicting dynamic RNA–protein binding landscapes and assessing the functional impact of genetic variants across multiple human cell types. It leverages a unified architecture that integrates:
@@ -198,7 +198,7 @@ To ensure reproducibility and ease of use, we provide all necessary resources pr
 
 ### Download from
 
-[figshare DOI (v2)](https://doi.org/10.6084/m9.figshare.29819843.v2)
+[figshare](https://doi.org/10.6084/m9.figshare.29819843)
 
 ### Verify downloaded files
 
@@ -208,7 +208,7 @@ we provide SHA256 checksums for released files, together with a verification scr
 ```bash
 python verify_checksums.py \
   --checksum checksums.sha256 \
-  --data_dir path/to/downloaded/files
+  --data_dir ./
 ```
 
 After verifying, you can extract the files to the corresponding locations under BRIDGE root directory.

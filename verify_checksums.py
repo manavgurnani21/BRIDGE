@@ -6,7 +6,7 @@ Expected input:
 - Local directory containing downloaded files
 
 Usage:
-    python verify_checksums.py --checksum checksums.sha256 --data_dir ./figshare_data
+    python verify_checksums.py --checksum checksums.sha256 --data_dir ./
 """
 
 import hashlib
