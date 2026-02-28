@@ -165,6 +165,7 @@ def main(args):
     # Dataset identifier and base data directory
     file_name = args.data_file
     data_path = args.data_path
+    Transformer_batch_size = args.batch_size
 
     if args.train:
         # Start timing the full training procedure
@@ -214,7 +215,8 @@ def main(args):
             transformer_path=args.Transformer_path,
             device=device,
             k=1,
-            transpose_to_ch_first=True
+            transpose_to_ch_first=True,
+            Transformer_batch_size=Transformer_batch_size
         )
         
         # Convert structural annotations into a fixed-length tensor representation
@@ -571,6 +573,7 @@ if __name__ == '__main__':
     parser.add_argument("--results_dir",default="./results",type=str,help="Root directory for outputs; will create logs/, model/, metrics/ under it")
     parser.add_argument('--Transformer_path', default='./RBPformer', type=str, help='BERT model path, in case you have another BERT')
     parser.add_argument('--model_save_path', default='./results/model', type=str, help='Save the trained model for dynamic prediction')
+    parser.add_argument('--batch_size', default=2048, type=int, help='The batch size for BERT embedding generation')
     
     # Execution mode flags
     parser.add_argument('--train', default=False, action='store_true', help='Run training mode')

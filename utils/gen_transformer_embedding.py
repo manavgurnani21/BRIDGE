@@ -243,7 +243,7 @@ def rbpformer_encode_batch(
     return features, attn_adj
 
 
-def gen_Transformer_embedding(protein, model, tokenizer, device, k):
+def gen_Transformer_embedding(protein, model, tokenizer, device, k, Transformer_batch_size):
     """
     Convenience wrapper: raw sequences -> k-mer strings -> batched Transformer inference.
 
@@ -258,6 +258,8 @@ def gen_Transformer_embedding(protein, model, tokenizer, device, k):
             Device on which inference runs.
         k (int):
             k-mer length used by `seq2kmer`.
+        Transformer_batch_size (int):
+            Batch size used for Transformer inference.
 
     Returns:
         Tuple[np.ndarray, np.ndarray]:
@@ -269,9 +271,6 @@ def gen_Transformer_embedding(protein, model, tokenizer, device, k):
                 NumPy array built from per-sequence attention matrices.
                 If all sequences yield identical token length L, expected numeric shape is (N, L, L).
                 Otherwise may become dtype=object.
-
-    Notes:
-        - This function uses a large DataLoader batch size (2048) for throughput.
     """
     sequences1 = protein
     sequences = []
@@ -285,7 +284,7 @@ def gen_Transformer_embedding(protein, model, tokenizer, device, k):
         sequences.append(ss)
         
     # Use a large batch size for efficient inference
-    dataloader = torch.utils.data.DataLoader(sequences, batch_size=2048, shuffle=False)
+    dataloader = torch.utils.data.DataLoader(sequences, batch_size=Transformer_batch_size, shuffle=False)
     
     # Run Transformer inference
     Features, Attn_adj = rbpformer_encode_batch(dataloader, model, tokenizer, device)
@@ -311,6 +310,7 @@ def build_Transformer_embeddings(
     device: torch.device,
     k: int = 1,
     transpose_to_ch_first: bool = True,
+    Transformer_batch_size: int = 2048,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Build token-level embeddings and attention weights for input sequences.
@@ -334,6 +334,8 @@ def build_Transformer_embeddings(
             For k>1, token length is approximately len(seq) - k + 1.
         transpose_to_ch_first (bool, optional):
             If True, transpose embeddings from (N, L, C) to (N, C, L). Default: True.
+        Transformer_batch_size (int, optional):
+            Batch size used for Transformer inference. Default: 2048.
 
     Returns:
         Tuple[np.ndarray, np.ndarray]:
@@ -360,7 +362,7 @@ def build_Transformer_embeddings(
     # Run embedding extraction without gradient computation
     with torch.no_grad():
         Transformer_embedding, attention_weight = gen_Transformer_embedding(
-            list(sequences), model, tokenizer, device, k
+            list(sequences), model, tokenizer, device, k, Transformer_batch_size
         )
 
     # Convert to channel-first format if required by downstream modules

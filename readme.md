@@ -57,6 +57,8 @@ BRIDGE: Bridging Sequence–Structure Motifs and Genetic Variants for Genome-wid
   - [Recommended installation (Conda)](#2-recommended-installation-conda)
   - [Running in docker (Optional)](#3-running-in-docker-optional)
 - [Data &amp; Resources](#data--resources)
+  - [Download from](#download-from)
+  - [Verify downloaded files](#verify-downloaded-files)
 - [Usage](#usage)
   - [Train](#1-train)
   - [Validate](#2-validate-evaluate-a-saved-model)
@@ -188,17 +190,18 @@ docker run --rm -it bridge:cpu
 
 To ensure reproducibility and ease of use, we provide all necessary resources pre-packaged for BRIDGE:
 
-| Resource         | Path (after extraction)              | Description                                   |
-| ---------------- | ------------------------------------ | --------------------------------------------- |
-| 🔹 Raw Data      | `BRIDGE/dataset/`                  | Input RNA tracks for model training/testing   |
-| 🔹 Variant FASTA | `BRIDGE/dataset_variant/`          | Variant-aware inference inputs (FASTA format) |
-| 🔹 RBPformer     | `BRIDGE/RBPformer/`                | Pretrained Transformer model                  |
-| 🔹 Motif Priors  | `BRIDGE/utils/motif_prior/output/` | Precomputed motif prior files for all RBPs    |
-| 🔹 Model Files   | `BRIDGE/results/model/`            | Trained BRIDGE models                         |
+| Resource           | Path (after extraction)              | Description                                   |
+| ------------------ | ------------------------------------ | --------------------------------------------- |
+| 🔹 Raw Data        | `BRIDGE/dataset/`                  | Input RNA tracks for model training/testing   |
+| 🔹 Variant FASTA   | `BRIDGE/dataset_variant/`          | Variant-aware inference inputs (FASTA format) |
+| 🔹 RBPformer       | `BRIDGE/RBPformer/`                | Pretrained Transformer model                  |
+| 🔹 Motif Priors    | `BRIDGE/utils/motif_prior/output/` | Precomputed motif prior files for all RBPs    |
+| 🔹 Model Files     | `BRIDGE/results/model/`            | Trained BRIDGE models                         |
+| 🔹 Reproducibility | `BRIDGE/results/reproducibility/`  | Reproducible resources                        |
 
 ### Download from
 
-[figshare](https://doi.org/10.6084/m9.figshare.29819843)
+[Figshare](https://doi.org/10.6084/m9.figshare.29819843)
 
 ### Verify downloaded files
 
