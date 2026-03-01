@@ -59,6 +59,7 @@ BRIDGE: Bridging Sequence–Structure Motifs and Genetic Variants for Genome-wid
 - [Data &amp; Resources](#data--resources)
   - [Download from](#download-from)
   - [Verify downloaded files](#verify-downloaded-files)
+- [API Documentation](#-api-documentation)
 - [Usage](#usage)
   - [Train](#1-train)
   - [Validate](#2-validate-evaluate-a-saved-model)
@@ -239,6 +240,16 @@ python verify_checksums.py \
 ```
 
 After verifying, you can extract the files to the corresponding locations under BRIDGE root directory.
+
+## 📚 API Documentation
+
+BRIDGE provides a flexible and extensible API for users to interact with the models, datasets, and results. You can use the API to automate tasks, query results, and integrate BRIDGE with other systems.
+
+### API Overview
+
+The BRIDGE API exposes several endpoints that allow you to interact with core functionalities such as training models, evaluating performance, and accessing predictions.
+
+For a detailed guide on using the API, please refer to the full [API documentation](https://bridgedocs.readthedocs.io/en/latest/api/user.html).
 
 ## 🚀Usage
 
@@ -542,6 +553,8 @@ We provide the **canonical entry point** for running BRIDGE end-to-end. Each wor
 | Task                               | Recommended notebook                               | What it covers                                                                                                                                                                                                                                                                         |
 | ---------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Motif extraction and visualization | `docs/tutorials/notebooks/motif_discovery.ipynb` | end-to-end motif workflow: discovering motifs from attention maps, converting motif instances to MEME, Tomtom comparison to motif databases, extracting motif-related sequences, generating sequence–structure PWMs, plotting motif logos, and generating circos-style visualizations |
+
+You can also visit the [online documentation](https://bridgedocs.readthedocs.io/en/latest/tutorials/index.html) for detailed instructions.
 
 ## 🧪 Reproducibility (Figures & Supplementary Figures)
 
