@@ -23,6 +23,7 @@ or character-level tokenization). It can be used to:
 Core modules (functions)
 ------------------------
 1) `load_tsv(path, max_len) -> (seqs, labels)`
+
    Input:
      - `path`: TSV file with lines `<sequence>\\t<label>`
    Output:
@@ -33,6 +34,7 @@ Core modules (functions)
      - a header row is skipped if the label field is non-integer
 
 2) `build_dataset(tokenizer, seqs, labels, max_len) -> TensorDataset`
+
    Input:
      - `tokenizer`: HuggingFace tokenizer
      - `seqs`, `labels`: data returned by `load_tsv`
@@ -41,6 +43,7 @@ Core modules (functions)
        with shapes (N, max_len), (N, max_len), (N,)
 
 3) `attention_scores(attn, kmer) -> Tensor[L]`
+
    Input:
      - `attn`: attention for a single example from a single layer,
               shaped (heads, L, L)
@@ -53,6 +56,7 @@ Core modules (functions)
      - L2 normalization
 
 4) `main()`
+
    CLI entry point that wires everything together, runs inference in batches,
    and saves outputs.
 
@@ -106,15 +110,18 @@ Files written to `<predict_dir>`:
 
 Typical command
 ---------------
-python run_finetune.py \\
-  --do_visualize \\
-  --tokenizer_name <tokenizer_name_or_path> \\
-  --model_name_or_path <model_ckpt_or_path> \\
-  --visualize_data_dir <dir_with_dev_tsv> \\
-  --max_seq_length 256 \\
-  --per_gpu_pred_batch_size 32 \\
-  --visualize_models 3 \\
-  --predict_dir <output_dir>
+
+.. code-block:: text
+
+    python run_finetune.py \\
+    --do_visualize \\
+    --tokenizer_name <tokenizer_name_or_path> \\
+    --model_name_or_path <model_ckpt_or_path> \\
+    --visualize_data_dir <dir_with_dev_tsv> \\
+    --max_seq_length 256 \\
+    --per_gpu_pred_batch_size 32 \\
+    --visualize_models 3 \\
+    --predict_dir <output_dir>
 
 Dependencies
 ------------
