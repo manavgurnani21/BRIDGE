@@ -1,3 +1,86 @@
+"""
+Motif-prior generation and loading utilities (STREME-based pipeline wrapper).
+
+This module wraps an external motif discovery/prior tool (invoked via
+`utils/motif_prior/get_motif_prior`) and exposes two main utilities:
+
+  1) `get_motif_prior(data_file)`:
+       Ensures the motif prior artifacts exist on disk for a given dataset ID.
+       It performs a lightweight existence/emptiness check and only runs the
+       external pipeline when needed.
+
+  2) `get_motif_prior_matrix(data_file) -> np.ndarray`:
+       Calls `get_motif_prior`, then loads the generated tab file and converts
+       it into a model-ready NumPy tensor with an explicit channel dimension.
+
+Typical usage context
+---------------------
+Use this module in training/inference pipelines where a model expects an
+additional "motif prior" feature channel derived from positive/negative
+sequence sets. This is common when combining:
+  - sequence-based encoders (CNN/Transformer),
+  - structure/shape channels (e.g., icSHAPE), and
+  - motif-derived priors from motif discovery tools.
+
+Core functions
+--------------
+1) `extract_sequences_from_fa(input_fa: str) -> List[str]`
+   Input:
+     - FASTA-like file where each record spans 3 lines:
+         line 0: header (e.g., >id ...)
+         line 1: sequence
+         line 2: icSHAPE scores (or any auxiliary line)
+   Output:
+     - list of sequence strings (line 1 of each 3-line record)
+   Notes:
+     - This reader assumes fixed 3-line blocks per record; it will silently
+       ignore trailing incomplete blocks.
+
+2) `get_motif_prior(data_file: str) -> None`
+   Input:
+     - `data_file`: dataset identifier, e.g., "LIN28B_HEK293"
+   Disk inputs (expected):
+     - dataset/{data_file}_pos.fa
+     - dataset/{data_file}_neg.fa
+   Disk outputs (checked/produced):
+     - utils/motif_prior/output/{data_file}/output/STRME_training_set.tab
+   Behavior:
+     - If the target directory/file does not exist, or the file is empty,
+       run the external binary to generate motif priors.
+     - Otherwise, skip computation.
+   Side effects:
+     - Creates an output directory under `utils/motif_prior/out/{data_file}`
+     - Creates temporary files containing foreground/background sequences
+     - Runs a subprocess (raises on failure with `check=True`)
+     - Deletes the temporary files after completion
+
+   External dependency:
+     - Executable: `utils/motif_prior/get_motif_prior` must be present and runnable.
+
+3) `get_motif_prior_matrix(data_file: str) -> np.ndarray`
+   Input:
+     - `data_file`: dataset identifier (same as above)
+   Output:
+     - NumPy array of shape (N, 1, M)
+       where:
+         N = number of sequences/examples in the training set file
+         1 = channel dimension (for downstream CNN-style pipelines)
+         M = number of motif features per example (columns excluding the ID column)
+   File parsed:
+     - utils/motif_prior/output/{data_file}/output/STRME_training_set.tab
+       tab-delimited with a header row; first column is an ID, remaining columns
+       are numeric motif features.
+
+Typical usage
+-------------
+# 1) Ensure motif priors exist on disk (cached if already present)
+get_motif_prior("LIN28B_HEK293")
+
+# 2) Load motif prior tensor for model input
+motif = get_motif_prior_matrix("LIN28B_HEK293")
+# motif.shape == (N, 1, M)
+"""
+
 import os
 import subprocess
 import numpy as np

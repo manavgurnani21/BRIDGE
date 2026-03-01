@@ -1,24 +1,132 @@
 #!/usr/bin/env python3
 # coding: utf-8
 """
-Required CLI flags (others are ignored):
-    --model_type           dna           (kept for compatibility, unused)
-    --tokenizer_name       path|name
-    --model_name_or_path   path|name
-    --task_name            dnaprom       (ignored, kept so your bash loop works)
-    --do_visualize                          (flag)
-    --visualize_data_dir   DIR           (contains *.tsv with seq \t label)
-    --visualize_models     K             (k-mer length, int ≥1)
-    --data_dir             same as above (kept for compatibility)
-    --max_seq_length       INT
-    --per_gpu_pred_batch_size   INT
-    --output_dir           path (unused, kept)
-    --predict_dir          DIR           (results will be written here)
-    --n_process            INT           (ignored - tokenisation is fast)
+Attention visualization + prediction export for HuggingFace sequence classifiers.
 
-Outputs:
-    {predict_dir}/atten.npy        - (N, L) normalised attention scores
-    {predict_dir}/pred_results.npy - (N,)  probability of positive class
+This module provides a small, self-contained CLI tool that:
+  1) loads a TSV dataset of biological sequences and integer labels,
+  2) tokenizes sequences with a HuggingFace tokenizer,
+  3) runs a HuggingFace `AutoModelForSequenceClassification` with
+     `output_attentions=True`,
+  4) converts the last-layer attention into a 1D per-token importance score,
+  5) exports attention scores and prediction probabilities to NumPy files.
+
+Typical usage context
+---------------------
+This script is intended for *post hoc* inspection of attention patterns for a
+trained Transformer-based sequence classifier (e.g., DNA/RNA k-mer tokenization
+or character-level tokenization). It can be used to:
+  - produce per-token "importance-like" vectors derived from [CLS] attention,
+  - export model probabilities for downstream ranking/analysis,
+  - reproduce legacy pipelines that expect a fixed set of CLI arguments.
+
+Core modules (functions)
+------------------------
+1) `load_tsv(path, max_len) -> (seqs, labels)`
+   Input:
+     - `path`: TSV file with lines `<sequence>\\t<label>`
+   Output:
+     - `seqs`: uppercased sequences, truncated to `max_len` characters
+     - `labels`: integer labels aligned with `seqs` (defaults to 0 if missing)
+   Notes:
+     - blank lines are skipped
+     - a header row is skipped if the label field is non-integer
+
+2) `build_dataset(tokenizer, seqs, labels, max_len) -> TensorDataset`
+   Input:
+     - `tokenizer`: HuggingFace tokenizer
+     - `seqs`, `labels`: data returned by `load_tsv`
+   Output:
+     - `TensorDataset(input_ids, attention_mask, labels)`
+       with shapes (N, max_len), (N, max_len), (N,)
+
+3) `attention_scores(attn, kmer) -> Tensor[L]`
+   Input:
+     - `attn`: attention for a single example from a single layer,
+              shaped (heads, L, L)
+     - `kmer`: optional smoothing window size (kmer=1 disables smoothing)
+   Output:
+     - 1D normalized score vector of length L
+   Method:
+     - head-sum on the CLS row: sum_h attn[h, 0, i]
+     - optional k-mer diffusion/smoothing over positions
+     - L2 normalization
+
+4) `main()`
+   CLI entry point that wires everything together, runs inference in batches,
+   and saves outputs.
+
+Main inputs
+-----------
+Required CLI arguments (actually used by this script):
+  --do_visualize
+      Must be set; the script asserts visualize-mode execution.
+  --tokenizer_name
+      HuggingFace tokenizer name or local path.
+  --model_name_or_path
+      HuggingFace model checkpoint name or local path.
+  --visualize_data_dir
+      Directory containing `dev.tsv`.
+  --max_seq_length
+      Maximum length used for both truncation and tokenization.
+  --predict_dir
+      Output directory for exported arrays and metadata.
+
+Optional (used):
+  --per_gpu_pred_batch_size
+      DataLoader batch size (default: 8).
+  --visualize_models
+      Interpreted here as `kmer` smoothing window size (default: 1).
+
+Accepted-but-ignored arguments (kept for interface compatibility):
+  --model_type, --task_name, --data_dir, --output_dir, --n_process
+
+Expected input file layout
+--------------------------
+`<visualize_data_dir>/dev.tsv` with one example per line:
+  <sequence>\\t<label>
+
+Example:
+  sequence    label
+  ACGTACGT    1
+  TTGCAA      0
+
+Main outputs
+------------
+Files written to `<predict_dir>`:
+  - `atten.npy`
+      NumPy array of shape (N, max_seq_length) containing per-token attention
+      scores (L2-normalized).
+  - `pred_results.npy`
+      NumPy array of shape (N,) containing prediction probabilities:
+        * binary: softmax(logits)[:, 1]
+        * multi-class: max softmax probability per sample
+  - `run_meta.json`
+      Small metadata record: { "N": ..., "kmer": ..., "max_len": ... }
+
+Typical command
+---------------
+python run_finetune.py \\
+  --do_visualize \\
+  --tokenizer_name <tokenizer_name_or_path> \\
+  --model_name_or_path <model_ckpt_or_path> \\
+  --visualize_data_dir <dir_with_dev_tsv> \\
+  --max_seq_length 256 \\
+  --per_gpu_pred_batch_size 32 \\
+  --visualize_models 3 \\
+  --predict_dir <output_dir>
+
+Dependencies
+------------
+- torch
+- transformers
+- numpy
+- tqdm
+
+Reproducibility
+---------------
+Seeds are fixed in `main()` for torch / random / numpy. Device selection defaults
+to CUDA when available.
 """
 import argparse, os, json, random, numpy as np, torch
 from tqdm import tqdm
