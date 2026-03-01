@@ -70,6 +70,7 @@ BRIDGE: Bridging Sequence–Structure Motifs and Genetic Variants for Genome-wid
     - [Core modeling workflows](#core-modeling-workflows)
     - [variant-aware scoring workflows](#variant-aware-scoring-workflows)
     - [Motif extraction &amp; visualization workflow](#motif-extraction--visualization-workflow)
+- [Reproducibility (Figures & Supplementary Figures)](#-reproducibility-figures--supplementary-figures)
 - [License](#license)
 - [Citation](#citation)
 - [Acknowledgements](#acknowledgements)
@@ -541,6 +542,16 @@ We provide the **canonical entry point** for running BRIDGE end-to-end. Each wor
 | Task                               | Recommended notebook                               | What it covers                                                                                                                                                                                                                                                                         |
 | ---------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Motif extraction and visualization | `docs/tutorials/notebooks/motif_discovery.ipynb` | end-to-end motif workflow: discovering motifs from attention maps, converting motif instances to MEME, Tomtom comparison to motif databases, extracting motif-related sequences, generating sequence–structure PWMs, plotting motif logos, and generating circos-style visualizations |
+
+## 🧪 Reproducibility (Figures & Supplementary Figures)
+
+This folder contains figure-specific notebooks for reproducing the main and supplementary figures in the BRIDGE paper.
+
+**Entry point:** `BRIDGE/reproducibility/`
+
+### Notes
+
+This assumes the packaged data/resources and trained checkpoints are already placed in the appropriate location (see the Data & Resources section above).
 
 ## 📜License
 
