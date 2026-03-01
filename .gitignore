@@ -47,6 +47,7 @@ docs/build/
 
 # Remain
 !framework.jpg
+!/docs/_static/BRIDGE_logo.png
 
 !/results/logs/
 !/results/metrics/
