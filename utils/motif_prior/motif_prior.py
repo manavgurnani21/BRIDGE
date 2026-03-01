@@ -105,9 +105,7 @@ def get_motif_prior_matrix(data_file: str) -> np.ndarray:
                          used to generate motif priors.
 
     Returns:
-        np.ndarray: A 3D NumPy array of shape (N, 1, M), where N is the 
-                    number of samples, 1 is the channel dimension, and 
-                    M is the motif feature length.
+        np.ndarray: A 3D NumPy array of shape (N, 1, M), where N is the number of samples, 1 is the channel dimension, and M is the motif feature length.
     """
     get_motif_prior(data_file)
     trainfile = f'utils/motif_prior/output/{data_file}/output/STRME_training_set.tab'

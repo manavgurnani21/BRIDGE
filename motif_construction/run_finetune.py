@@ -11,7 +11,7 @@ Required CLI flags (others are ignored):
     --visualize_models     K             (k-mer length, int ≥1)
     --data_dir             same as above (kept for compatibility)
     --max_seq_length       INT
-    --per_gpu_pred_batch_size INT
+    --per_gpu_pred_batch_size   INT
     --output_dir           path (unused, kept)
     --predict_dir          DIR           (results will be written here)
     --n_process            INT           (ignored - tokenisation is fast)
@@ -27,8 +27,45 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 def load_tsv(path: str, max_len: int):
     """
-    Reads a TSV of  <sequence>\t<label>
-    Skips blank lines and any header row whose label field is non-numeric.
+    Load sequences and integer labels from a TSV file.
+
+    The TSV is expected to contain one example per line in the form:
+        <sequence>\t<label>
+
+    Behavior:
+    
+        - Skips blank lines.
+        
+        - Skips a header row if the label field is present but non-integer
+        (after stripping a leading '-').
+
+    Sequences are uppercased and truncated to `max_len` characters.
+
+    Args:
+        path: Path to the TSV file.
+        max_len: Maximum number of sequence characters to keep (hard truncation).
+
+    Returns:
+        A tuple (seqs, labels):
+        - seqs: List[str], uppercased sequences truncated to `max_len`.
+        - labels: List[int], parsed labels. If a line has no label field, the
+          label defaults to 0.
+
+    Raises:
+        FileNotFoundError: If `path` does not exist.
+        UnicodeDecodeError: If the file cannot be decoded with UTF-8.
+        IndexError: If a non-empty line has no first column (malformed TSV).
+        ValueError: If a label is present but cannot be converted to `int`
+          (this will only occur if it passes the header check but is still not
+          a valid integer representation).
+
+    Example:
+        >>> # dev.tsv content:
+        >>> # sequence\tlabel
+        >>> # ACGT\t1
+        >>> seqs, labels = load_tsv("dev.tsv", max_len=8)
+        >>> seqs[0], labels[0]
+        ('ACGT', 1)
     """
     seqs, labels = [], []
     with open(path, encoding="utf-8") as fh:
@@ -48,6 +85,47 @@ def load_tsv(path: str, max_len: int):
 
 
 def build_dataset(tokenizer, seqs, labels, max_len):
+    """
+    Tokenize sequences and build a PyTorch TensorDataset.
+
+    This function tokenizes `seqs` using the provided HuggingFace tokenizer and
+    returns a `TensorDataset` containing:
+        (input_ids, attention_mask, labels)
+
+    Tokenization config:
+        - padding="max_length"
+        
+        - truncation=True
+        
+        - max_length=max_len
+        
+        - add_special_tokens=True
+        
+        - return_tensors="pt"
+
+    Args:
+        tokenizer: A HuggingFace tokenizer instance (e.g., AutoTokenizer).
+        seqs: List[str] of raw input sequences (already truncated/processed).
+        labels: List[int] of labels aligned to `seqs`.
+        max_len: Maximum token sequence length used by the tokenizer.
+
+    Returns:
+        torch.utils.data.TensorDataset with three tensors:
+        - input_ids: LongTensor of shape (N, max_len)
+        - attention_mask: LongTensor of shape (N, max_len)
+        - labels: LongTensor of shape (N,)
+
+    Raises:
+        ValueError: If `len(seqs) != len(labels)`.
+        KeyError: If tokenizer output does not contain 'input_ids' or 'attention_mask'.
+        TypeError/RuntimeError: If tensors cannot be constructed due to dtype/shape issues.
+
+    Example:
+        >>> tok = AutoTokenizer.from_pretrained("bert-base-uncased")
+        >>> ds = build_dataset(tok, ["ACGT"], [1], max_len=8)
+        >>> len(ds)
+        1
+    """
     enc = tokenizer(
         seqs,
         padding="max_length",
@@ -64,8 +142,48 @@ def build_dataset(tokenizer, seqs, labels, max_len):
 
 def attention_scores(attn, kmer):
     """
-    attn: (heads, L, L) tensor from model output
-    Returns one vector (L,) after head-sum & k-mer smoothing (as in original).
+    Convert a multi-head attention matrix into a 1D, normalized importance vector.
+
+    The expected attention tensor corresponds to a *single example* from a single
+    layer:
+        attn shape: (heads, L, L)
+
+    Computation:
+    
+    1) Head-sum on CLS row:
+    
+       - Sum attentions across heads: attn.sum(dim=0) -> (L, L)
+       
+       - Take CLS row (row index 0): row = ...[0] -> (L,)
+       
+       This yields a per-token score for how much CLS attends to token i.
+
+    2) Optional k-mer smoothing:
+    
+       - For each window i..i+kmer-1, add window sum to all positions in window,
+         then average by counts.
+
+    3) L2 normalization:
+    
+       - Return scores / (||scores|| + eps)
+
+    Args:
+        attn: Attention tensor of shape (heads, L, L) for one sample.
+        kmer: Window size for smoothing/diffusion. If kmer==1, no smoothing is
+            applied beyond normalization.
+
+    Returns:
+        A 1D tensor of shape (L,) containing normalized attention-derived scores.
+
+    Raises:
+        ValueError: If `kmer < 1`.
+        RuntimeError: If `attn` does not have 3 dimensions or is on an incompatible device.
+
+    Example:
+        >>> attn = torch.rand(8, 10, 10)  # 8 heads, length 10
+        >>> s = attention_scores(attn, kmer=3)
+        >>> s.shape
+        torch.Size([10])
     """
     # head-sum on CLS row: Σ_h a[h, 0, i]
     row = attn.sum(dim=0)[0]       # shape (L,)
@@ -83,6 +201,35 @@ def attention_scores(attn, kmer):
 
 
 def main():
+    """
+    CLI entry point for attention visualization and prediction export.
+
+    Command-line arguments
+    ----------------------
+    This script keeps a set of arguments for compatibility. Some are
+    accepted but intentionally ignored.
+
+    Used arguments:
+        - --do_visualize (required): must be set; otherwise AssertionError.
+        - --tokenizer_name: HuggingFace tokenizer name/path.
+        - --model_name_or_path: HuggingFace model checkpoint directory/name.
+        - --visualize_data_dir: directory containing dev.tsv.
+        - --max_seq_length: maximum length for truncation/tokenization.
+        - --per_gpu_pred_batch_size: DataLoader batch size.
+        - --predict_dir: output directory for .npy and JSON.
+        - --visualize_models: interpreted here as `kmer` smoothing window size.
+
+    Ignored arguments (accepted for interface compatibility):
+        - --model_type, --task_name, --data_dir, --output_dir, --n_process
+
+    Outputs:
+        - atten.npy, pred_results.npy, run_meta.json under `predict_dir`.
+
+    Raises:
+        AssertionError: If `--do_visualize` is not provided.
+        FileNotFoundError: If `<visualize_data_dir>/dev.tsv` is missing.
+        RuntimeError: If CUDA/CPU device placement or model outputs fail.
+    """
     parser = argparse.ArgumentParser()
     # keep only the 13 required args ----------------------------------------- #
     parser.add_argument("--model_type")  # ignored

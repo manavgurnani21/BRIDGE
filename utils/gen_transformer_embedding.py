@@ -54,11 +54,11 @@ Embedding shape
 Returned outputs
     ``build_Transformer_embeddings`` returns:
 
-    - ``Transformer_embedding``:
-      - if ``transpose_to_ch_first=True``: expected shape ``(N, C, L)``
-      - else: expected shape ``(N, L, C)``
-    - ``attention_weight``:
-      attention-derived matrices aligned to token positions, expected shape ``(N, L, L)``
+        - ``Transformer_embedding``:
+            - if ``transpose_to_ch_first=True``: expected shape ``(N, C, L)``
+            - else: expected shape ``(N, L, C)``
+        - ``attention_weight``:
+        attention-derived matrices aligned to token positions, expected shape ``(N, L, L)``
 
     Here ``C`` is the Transformer hidden size (often 512 for RBPformer checkpoints).
 

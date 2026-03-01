@@ -2,8 +2,6 @@
 # -*- coding: utf-8 -*-
 
 """
-variant_aware.py
-
 Unified *variant-aware* scoring entry point for BRIDGE.
 
 The script reads sequence windows from a FASTA file, optionally applies an allele
@@ -113,23 +111,27 @@ def process_sequences_gwas(
     args: argparse.Namespace,
     hub: ModelHub,
 ) -> None:
-    """Process each FASTA record and append GWAS/BRIDGE variant-aware predictions.
+    """
+    Process each FASTA record and append GWAS/BRIDGE variant-aware predictions.
+    
+    Args:
+        names (List[str]): List of FASTA record headers (sequence identifiers).
+        seqs (List[str]): List of FASTA sequence strings.
+        args (argparse.Namespace): Command line arguments containing configurations like variation mode and output file.
+        hub (ModelHub): A ModelHub object to manage model loading and device handling.
 
-    For each (header, seq):
-      1) Parse (variant_pos, REF, ALT, strand, seq_start) from header.
-      2) If strand is '-', complement REF/ALT bases.
-      3) Compute 0-based index in the window: idx0 = variant_pos - seq_start.
-      4) Validate idx0 bounds and REF base match inside the window.
-      5) Choose sequence:
-         - before: `modified_seq = seq`
-         - after : `modified_seq = seq` with idx0 substituted to ALT
-      6) Build multimodal inputs expected by BRIDGE:
-         - transformer embedding, attn, struct, motif priors, and biochemical features.
-      7) Load checkpoint named by FASTA stem, run `validate_without_sigmoid`, write output.
+    Returns:
+        None. Results are written to the file specified in `args.variant_out_file`.
 
-    Important implied constraints
-    -----------------------------
-    - The fixed tensors `(1, 1, 101)` imply window length ≈ 101 in typical usage.
+    Exceptions:
+        Logs errors when:
+        
+            - Parsing the variant information fails.
+            
+            - Variant position is out of bounds or mismatches the REF base.
+    
+    Example:
+        >>> process_sequences_gwas(names, sequences, args, hub)
     """
     out_fp = open_output(Path(args.variant_out_file))
     criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(2.0, device=hub.device))
@@ -222,7 +224,33 @@ class ParsedHeader:
 
 
 def parse_protein_cell_line(fields: List[str]) -> Tuple[Optional[str], Optional[str]]:
-    "Heuristically parse protein & cell line from header tokens."
+    """
+    Heuristically parses protein and cell line from header tokens in a FASTA header.
+
+    This function identifies the protein and cell line from a list of header tokens.
+    It prefers the format "... <PROTEIN> in <CELL>" but falls back on older conventions
+    where the protein and cell line are assumed to be at fixed positions in the header.
+
+    Args:
+        fields (List[str]): A list of strings representing the tokens parsed from a FASTA header.
+
+    Returns:
+        Tuple[Optional[str], Optional[str]]:
+        
+            - `protein` (Optional[str]): The parsed protein name, or None if not found.
+            
+            - `cell` (Optional[str]): The parsed cell line name, or None if not found.
+
+    Exceptions:
+        None. If the header format does not match expectations, the function will attempt to
+        fall back on different header conventions.
+
+    Example:
+        >>> fields = ["GeneA", "in", "CellLineA"]
+        >>> protein, cell = parse_protein_cell_line(fields)
+        >>> print(protein, cell)
+        "GeneA", "CellLineA"
+    """
     protein: Optional[str] = None
     cell: Optional[str] = None
 
@@ -250,7 +278,22 @@ def parse_protein_cell_line(fields: List[str]) -> Tuple[Optional[str], Optional[
 
 
 def parse_header_catalog(header_raw: str) -> ParsedHeader:
-    "Parse a catalog-variant header with flexible token positions."
+    """
+    Parse a catalog-variant header (ClinVar, TCGA, 1000G style) from a FASTA header.
+
+    Args:
+        header_raw (str): The raw header string to parse.
+
+    Returns:
+        ParsedHeader: A dataclass containing parsed region, variant, and model information.
+
+    Exceptions:
+        Raises ValueError if the header does not contain expected region or variant information.
+    
+    Example:
+        >>> header = ">chr1:100-200(+) 123:A>T ProteinA in CellLineA"
+        >>> parsed_header = parse_header_catalog(header)
+    """
     fields = header_raw.split()
 
     region_tok: Optional[str] = None
@@ -308,7 +351,33 @@ def find_variant_index(
     alt: str,
     try_off_by_one: bool = True,
 ) -> Tuple[Optional[int], str]:
-    "Locate the 0-based variant index inside the window sequence."
+    """
+    Locate the 0-based variant index inside the window sequence.
+
+    This function searches for the variant position within the given sequence. It returns
+    the index of the matching base (REF or ALT) in the sequence. Optionally, it can attempt
+    to handle the case where the variant position is off by one (e.g., due to off-by-one errors).
+
+    Args:
+        seq (str): The sequence string in which to find the variant position.
+        seq_start (int): The starting position of the sequence window.
+        var_pos (int): The position of the variant (1-based index).
+        ref (str): The reference base at the variant position.
+        alt (str): The alternative base at the variant position.
+        try_off_by_one (bool, optional): Whether to try the adjacent position (var_pos - 1) if the exact variant position is not found. Defaults to True.
+
+    Returns:
+        Tuple[Optional[int], str]:
+            - The index (0-based) of the base in the sequence that matches either REF or ALT.
+            - A string indicating whether the base at the index is "ref", "alt", or "none" if neither match.
+
+    Exceptions:
+        None. If no match is found, the function returns `None, "none"` without raising any errors.
+
+    Example:
+        >>> find_variant_index("AGCTG", 0, 3, "T", "G")
+        (2, "ref")
+    """
     candidates = [var_pos - seq_start]
     if try_off_by_one:
         candidates.append(var_pos - seq_start - 1)
@@ -331,7 +400,26 @@ def process_sequences_catalog_variants(
     args: argparse.Namespace,
     hub: ModelHub,
 ) -> None:
-    "Variant-aware scoring for ClinVar/TCGA/1000G-style FASTA batches (SNVs)."
+    """
+    Variant-aware scoring for ClinVar/TCGA/1000G-style FASTA batches (SNVs).
+    
+    Args:
+        headers (List[str]): List of FASTA record headers (with variant information).
+        seqs (List[str]): List of FASTA sequences.
+        args (argparse.Namespace): Command-line arguments specifying paths and scoring options.
+        hub (ModelHub): ModelHub object for model loading.
+
+    Returns:
+        None. Results are written to the file specified in `args.variant_out_file`.
+
+    Exceptions:
+        Logs warnings and skips records when:
+        - Variant position is out of bounds.
+        - REF/ALT mismatch occurs.
+    
+    Example:
+        >>> process_sequences_catalog_variants(headers, sequences, args, hub)
+    """
     out_fp = open_output(args.variant_out_file)
     criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(float(args.pos_weight), device=hub.device))
 
@@ -464,19 +552,27 @@ def run_ribosnitches(
     args: argparse.Namespace,
     device: torch.device,
 ) -> None:
-    """Run ribosnitches scoring using the *same* BRIDGE pipeline components as GWAS mode.
+    """
+    Run ribosnitch scoring using the BRIDGE pipeline components.
 
-    What changes compared to GWAS mode is *only* the checkpoint selection rule:
-    we select all `.pth` files under `--model_save_path` that end with either
-    `_<cell_line1>.pth` or `_<cell_line2>.pth`, where the two cell lines are taken
-    from the last two tokens of each FASTA header.
+    This function scores a sequence using multiple BRIDGE models based on cell-line-specific checkpoints.
+    It applies mutation behavior and computes prediction scores for each (record, checkpoint) pair.
 
-    Mutation behavior is controlled by:
-    - `--variation_mode` (before/after), OR
-    - `--ribosnitches_after_variation` (force after)
+    Args:
+        names (List[str]): List of FASTA record headers (sequence identifiers).
+        seqs (List[str]): List of FASTA sequences to be scored.
+        args (argparse.Namespace): Command-line arguments that define scoring options and model paths.
+        device (torch.device): The device (CPU/GPU) to perform computation on.
 
-    Output is appended as TSV:
-        <header_without_>  <model_stem>  <score>
+    Returns:
+        None. The results are written to the output file specified by `args.variant_out_file`.
+
+    Raises:
+        FileNotFoundError: If the provided model path does not exist.
+        ValueError: If the variant substitution cannot be applied due to base mismatches.
+
+    Example:
+        >>> run_ribosnitches(names, sequences, args, device)
     """
 
     # Decide whether we should substitute ALT in the window
@@ -567,6 +663,9 @@ def run_ribosnitches(
 # Main
 # ---------------------------------------------------------------------------
 def build_argparser() -> argparse.ArgumentParser:
+    """
+    Build and return the argument parser for the script.
+    """
     parser = argparse.ArgumentParser(
         description=(
             "Variant-aware scoring with BRIDGE. Supports three pipelines:\n"
@@ -679,6 +778,10 @@ def build_argparser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    """
+    Main entry point for variant-aware scoring using BRIDGE. Processes FASTA sequences
+    through one of three available pipelines: GWAS, Ribosnitch, or Catalog Variants.
+    """
     args = build_argparser().parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     device = torch.device(args.device)

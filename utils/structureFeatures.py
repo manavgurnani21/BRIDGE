@@ -11,11 +11,11 @@ positions for downstream models (e.g., BRIDGE):
    shaped ``(N, L, 5)``.
 
    Channels (column order in the returned array):
-   - ``P``: pairedness probability (computed as residual probability mass)
-   - ``H``: hairpin-loop probability
-   - ``I``: internal-loop probability
-   - ``M``: multi-loop probability
-   - ``E``: external-region probability
+    - ``P``: pairedness probability (computed as residual probability mass)
+    - ``H``: hairpin-loop probability
+    - ``I``: internal-loop probability
+    - ``M``: multi-loop probability
+    - ``E``: external-region probability
 
    The combined profile is cached on disk and parsed by :func:`read_combined_profile`.
 

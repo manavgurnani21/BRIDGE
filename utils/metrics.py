@@ -55,6 +55,7 @@ Objectives in ``calculate_metrics``
 ``calculate_metrics(label, prediction, objective)`` supports:
 
 - ``"binary"`` and ``"hinge"``
+
   Treats inputs as binary (or multi-label) classification.
 
   Returns:
@@ -62,26 +63,31 @@ Objectives in ``calculate_metrics``
   std : ``[acc_std, auc_roc_std, auc_pr_std, f1_std, mcc_std]``
 
 - ``"categorical"``
+
   Treats input as multi-class with one-hot labels and predicted class probabilities.
 
   Returns:
-  mean: begins with ``[acc, auc_roc, auc_pr]`` (macro over columns),
-        then appends per-class ROC-AUC for each column.
-  std : begins with ``[acc_std, auc_roc_std, auc_pr_std]``,
-        then appends the corresponding per-class ROC-AUC standard deviations.
+  
+    mean: begins with ``[acc, auc_roc, auc_pr]`` (macro over columns),
+            then appends per-class ROC-AUC for each column.
+            
+    std : begins with ``[acc_std, auc_roc_std, auc_pr_std]``,
+            then appends the corresponding per-class ROC-AUC standard deviations.
 
   Note:
-  The current implementation appends per-class ROC-AUC only (not per-class PR-AUC).
+    The current implementation appends per-class ROC-AUC only (not per-class PR-AUC).
 
 - ``"squared_error"``, ``"kl_divergence"``, ``"cdf"``
+
   Treated as regression-like objectives, but labels are thresholded to binary (0/1) first.
 
   Returns:
-  mean: ``[acc, auc_roc, auc_pr, tp, tn, fp, fn, pearsonr_mean, rsquare_mean, slope_mean]``
-  std : ``[acc_std, auc_roc_std, auc_pr_std, pearsonr_std, rsquare_std, slope_std]``
+    mean: ``[acc, auc_roc, auc_pr, tp, tn, fp, fn, pearsonr_mean, rsquare_mean, slope_mean]``
+    
+    std : ``[acc_std, auc_roc_std, auc_pr_std, pearsonr_std, rsquare_std, slope_std]``
 
   Note:
-  ``pearsonr``, ``rsquare``, and ``slope`` are computed after label thresholding.
+    ``pearsonr``, ``rsquare``, and ``slope`` are computed after label thresholding.
 
 Return value (important)
 ------------------------

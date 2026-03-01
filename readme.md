@@ -65,7 +65,7 @@ BRIDGE: Bridging Sequence–Structure Motifs and Genetic Variants for Genome-wid
   - [Dynamic Transfer Prediction](#3-dynamic-transfer-prediction-crosscell-type)
   - [Variant-Aware Scoring](#4-variant-aware-scoring)
   - [Motif construction](#5-motif-construction)
-- [Step-by-Step Tutorials](#step-by-step-tutorials)
+- [Step-by-Step Tutorials](#-step-by-step-tutorials)
   - [Workflow Map](#workflow-map)
     - [Core modeling workflows](#core-modeling-workflows)
     - [variant-aware scoring workflows](#variant-aware-scoring-workflows)
@@ -185,6 +185,29 @@ Launch a container with CPU support:
 ```bash
 docker run --rm -it bridge:cpu
 ```
+
+### Sanity-Check for Environment Setup
+
+To verify that the environment has been set up correctly and avoid dependency conflicts, especially with PyTorch and PyTorch Geometric, you can check the installed versions directly in the command line. Run the following commands to ensure that the necessary libraries are correctly installed and compatible.
+
+**Run these commands:**
+
+```bash
+# Check PyTorch version and CUDA availability
+python -c "import torch; print('torch:', torch.__version__, 'cuda:', torch.version.cuda, 'cuda_available:', torch.cuda.is_available())"
+
+# Check PyTorch Geometric version
+python -c "import torch_geometric; print('torch-geometric:', torch_geometric.__version__)"
+```
+
+This will display the installed versions of PyTorch and PyTorch Geometric, as well as the CUDA version and availability. An example output might look like this:
+
+```bash
+torch: 2.0.1+cu117 cuda: 11.7 cuda_available: True
+torch-geometric: 2.6.1
+```
+
+If the versions match the recommended ones in the prerequisites section, the PyTorch and PyTorch Geometric are correctly set up.
 
 ## 📂Data & Resources
 

@@ -111,39 +111,39 @@ def main(args):
     Main entry point for training the BRIDGE model.
 
     This function orchestrates the full training pipeline, including:
-    - random seed initialization
-    - device (CPU/GPU) configuration
-    - data loading and preprocessing
-    - sequence embedding extraction using a pretrained transformer
-    - construction of structural, biochemical, and motif prior features
-    - dataset splitting and DataLoader creation
-    - model training, validation, learning-rate scheduling, and early stopping
-    - model checkpointing and performance reporting
-    - persistent logging/config/metrics under results/{logs,model,metrics}
+        - random seed initialization
+        - device (CPU/GPU) configuration
+        - data loading and preprocessing
+        - sequence embedding extraction using a pretrained transformer
+        - construction of structural, biochemical, and motif prior features
+        - dataset splitting and DataLoader creation
+        - model training, validation, learning-rate scheduling, and early stopping
+        - model checkpointing and performance reporting
+        - persistent logging/config/metrics under results/{logs,model,metrics}
 
     Parameters
     ----------
     args : argparse.Namespace
         Parsed command-line arguments specifying runtime configuration.
         Expected attributes include (but are not limited to):
-        - seed : int
-            Random seed for reproducibility.
-        - use_cpu : bool
-            Whether to force CPU execution.
-        - device_num : int
-            GPU device index to use when CUDA is available.
-        - train : bool
-            Whether to run the training procedure.
-        - data_file : str
-            Dataset identifier used to locate input files.
-        - data_path : str
-            Root directory containing input FASTA and feature files.
-        - Transformer_path : str
-            Path to the pretrained RBPformer model.
-        - lr : float
-            Initial learning rate for the optimizer.
-        - early_stopping : int
-            Number of epochs without improvement before early stopping.
+            - seed : int
+                Random seed for reproducibility.
+            - use_cpu : bool
+                Whether to force CPU execution.
+            - device_num : int
+                GPU device index to use when CUDA is available.
+            - train : bool
+                Whether to run the training procedure.
+            - data_file : str
+                Dataset identifier used to locate input files.
+            - data_path : str
+                Root directory containing input FASTA and feature files.
+            - Transformer_path : str
+                Path to the pretrained RBPformer model.
+            - lr : float
+                Initial learning rate for the optimizer.
+            - early_stopping : int
+                Number of epochs without improvement before early stopping.
     """
 
     # Fix random seeds for reproducibility across runs

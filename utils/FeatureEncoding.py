@@ -57,9 +57,9 @@ vector dimension is ``99``, constructed as:
    Shape: ``(101, 11)``
 
 4) Positional k-mer frequency tensors via ``coden`` for k=1,2,3:
-   - k=1 vocabulary size 4
-   - k=2 vocabulary size 16
-   - k=3 vocabulary size 64
+    - k=1 vocabulary size 4
+    - k=2 vocabulary size 16
+    - k=3 vocabulary size 64
 
    IMPORTANT: ``coden`` assigns the *global count* of the k-mer (across the entire sequence)
    to the row corresponding to its start position, not a one-hot indicator. Counts are

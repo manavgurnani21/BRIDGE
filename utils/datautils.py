@@ -54,10 +54,10 @@ One-hot encoding
     - Input: ``sequence`` is a ``list[str]`` (each sequence is uppercased internally).
     - Output: ``np.ndarray`` of shape ``(N, 4, L)`` or ``(N, 4, max_length)``.
     - Channel order:
-      - channel 0: ``A``
-      - channel 1: ``C``
-      - channel 2: ``G``
-      - channel 3: ``U`` or ``T``
+        - channel 0: ``A``
+        - channel 1: ``C``
+        - channel 2: ``G``
+        - channel 3: ``U`` or ``T``
 
 Padding behavior (``convert_one_hot``)
     If ``max_length`` is provided, sequences are centered and padded symmetrically:

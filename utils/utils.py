@@ -2,10 +2,11 @@
 Dataset, encoding utilities, and learning-rate scheduling helpers for BRIDGE.
 
 This module groups together several utilities used across BRIDGE training/inference:
-(1) sequence preprocessing / encoding, (2) multimodal Dataset wrappers,
-(3) stratified train/test splitting for aligned modalities, and
-(4) a warmup learning-rate scheduler compatible with both step-based schedulers
-and ReduceLROnPlateau.
+
+    (1) sequence preprocessing / encoding, 
+    (2) multimodal Dataset wrappers,
+    (3) stratified train/test splitting for aligned modalities, and
+    (4) a warmup learning-rate scheduler compatible with both step-based schedulers and ReduceLROnPlateau.
 
 Provided functionality
 ----------------------
