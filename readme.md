@@ -72,6 +72,7 @@ BRIDGE: Bridging Sequence–Structure Motifs and Genetic Variants for Genome-wid
     - [variant-aware scoring workflows](#variant-aware-scoring-workflows)
     - [Motif extraction &amp; visualization workflow](#motif-extraction--visualization-workflow)
 - [Reproducibility (Figures & Supplementary Figures)](#-reproducibility-figures--supplementary-figures)
+  - [Notes](#notes)
 - [License](#license)
 - [Citation](#citation)
 - [Acknowledgements](#acknowledgements)

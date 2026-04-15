@@ -44,6 +44,8 @@ docs/build/
 /reproducibility/ClinVar_TCGA_1000G_resources/
 /reproducibility/cell_type_specific/
 /reproducibility/ablation&interpretability/
+/source_Data/
+* copy.ipynb
 
 # Remain
 !framework.jpg
