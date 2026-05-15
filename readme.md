@@ -50,33 +50,50 @@ BRIDGE: Bridging Sequence–Structure Motifs and Genetic Variants for Genome-wid
 
 ## 📑 Table of Contents
 
-- [Overview](#overview)
-- [Environment Setup](#%EF%B8%8Fenvironment-setup)
+- [📑 Table of Contents](#-table-of-contents)
+- [🔬Overview](#overview)
+- [⚙️Environment Setup](#️environment-setup)
   - [Tested Environment](#tested-environment)
-  - [Prerequisites](#1-prerequisites)
-  - [Recommended installation (Conda)](#2-recommended-installation-conda)
-  - [Running in docker (Optional)](#3-running-in-docker-optional)
-- [Data &amp; Resources](#data--resources)
+  - [1) Prerequisites](#1-prerequisites)
+  - [2) Recommended installation (Conda)](#2-recommended-installation-conda)
+  - [3) Running in docker (Optional)](#3-running-in-docker-optional)
+    - [Step 1: Install Docker](#step-1-install-docker)
+    - [Step 2: Build and run the Docker image](#step-2-build-and-run-the-docker-image)
+      - [GPU users](#gpu-users)
+      - [CPU users](#cpu-users)
+  - [Sanity-Check for Environment Setup](#sanity-check-for-environment-setup)
+- [📂Data \& Resources](#data--resources)
   - [Download from](#download-from)
   - [Verify downloaded files](#verify-downloaded-files)
-- [API Documentation](#-api-documentation)
-- [Usage](#usage)
-  - [Train](#1-train)
-  - [Validate](#2-validate-evaluate-a-saved-model)
-  - [Dynamic Transfer Prediction](#3-dynamic-transfer-prediction-crosscell-type)
-  - [Variant-Aware Scoring](#4-variant-aware-scoring)
-  - [Motif construction](#5-motif-construction)
-- [Step-by-Step Tutorials](#-step-by-step-tutorials)
+- [📚 API Documentation](#-api-documentation)
+  - [API Overview](#api-overview)
+- [🚀Usage](#usage)
+  - [1) Train](#1-train)
+    - [GPU version (default)](#gpu-version-default)
+    - [CPU version (force CPU)](#cpu-version-force-cpu)
+  - [2) Validate (Evaluate a saved model)](#2-validate-evaluate-a-saved-model)
+    - [GPU version (default)](#gpu-version-default-1)
+    - [CPU version (force CPU)](#cpu-version-force-cpu-1)
+  - [3) Dynamic Transfer Prediction (Cross–cell-type)](#3-dynamic-transfer-prediction-crosscell-type)
+    - [GPU version (default)](#gpu-version-default-2)
+    - [CPU version (force CPU)](#cpu-version-force-cpu-2)
+  - [4) Variant-Aware Scoring](#4-variant-aware-scoring)
+    - [GPU version](#gpu-version)
+    - [CPU version (force CPU)](#cpu-version-force-cpu-3)
+  - [5) Motif construction](#5-motif-construction)
+    - [Step 1: Generate attention maps for motif visualization](#step-1-generate-attention-maps-for-motif-visualization)
+    - [Step 2: Discover motifs from attention maps](#step-2-discover-motifs-from-attention-maps)
+- [📘 Step-by-Step Tutorials](#-step-by-step-tutorials)
   - [Workflow Map](#workflow-map)
     - [Core modeling workflows](#core-modeling-workflows)
-    - [variant-aware scoring workflows](#variant-aware-scoring-workflows)
-    - [Motif extraction &amp; visualization workflow](#motif-extraction--visualization-workflow)
-- [Reproducibility (Figures & Supplementary Figures)](#-reproducibility-figures--supplementary-figures)
+    - [Variant-aware scoring workflows](#variant-aware-scoring-workflows)
+    - [Motif extraction \& visualization workflow](#motif-extraction--visualization-workflow)
+- [🧪 Reproducibility (Figures \& Supplementary Figures)](#-reproducibility-figures--supplementary-figures)
   - [Notes](#notes)
-- [License](#license)
-- [Citation](#citation)
-- [Acknowledgements](#acknowledgements)
-- [User Support](#user-support)
+- [📜License](#license)
+- [📚Citation](#citation)
+- [🤝Acknowledgements](#acknowledgements)
+- [💬User Support](#user-support)
 
 ## 🔬Overview
 
@@ -576,7 +593,14 @@ This project is licensed under the MIT License.
 If you use BRIDGE in your research, please cite the accompanying manuscript.
 
 ```
-Unpublished yet
+@article{Wang2026BRIDGE,
+  title   = {Bridging sequence-structure motifs and genetic variants for genome-wide dynamic RNA-protein interaction profiling},
+  author  = {Wang, Yubo and Zhu, Haoran and Hao, Gaoyang and Su, Yanchi and Yu, Zhuohan and Yang, Yuning and Wang, Fuzhou and Chen, Xingjian and Wong, Ka-chun and Li, Xiangtao},
+  journal = {Nature Communications},
+  year    = {2026},
+  doi     = {10.1038/s41467-026-73086-0},
+  url     = {https://doi.org/10.1038/s41467-026-73086-0}
+}
 ```
 
 ## 🤝Acknowledgements
