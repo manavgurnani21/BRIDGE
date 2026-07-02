@@ -21,12 +21,21 @@ Thumbs.db
 
 # --- Outputs / Data ---
 /results/*
-/data/
+/dataset/
 /dataset_all/
 /tutorial/
 /tutorials/
 /dataset_motif1mer/
 /dataset_variant/
+/utils/motif_prior/out/
+/utils/motif_prior/output/
+/utils/motif_prior/*_HepG2/
+/utils/motif_prior/*_K562/
+/utils/motif_prior/*_Hela/
+/utils/motif_prior/*_HEK293/
+/utils/motif_prior/*_HEK293T/
+/utils/motif_prior/*_H9/
+/results/model/*
 *.tmp
 
 # --- Figures ---
@@ -53,9 +62,7 @@ docs/build/
 
 !/results/logs/
 !/results/metrics/
-!/results/model/
 !/results/logs/**
 !/results/metrics/**
-!/results/model/**
 
 !/dataset_variant/readme.md
