@@ -199,14 +199,17 @@ def seq2kmer(seq, k):
     return kmer
 
 
-def split_dataset(data1, data2, data3, data_motif, data_plfold, targets, valid_frac=0.2):
+def split_dataset(data1, data2, data3, data_motif, data_plfold, targets, valid_frac=0.15, test_frac=0.15):
     """
-    Stratified train/test split for multiple aligned modalities.
+    Stratified train/validation/test split for multiple aligned modalities.
 
-    This function splits samples into train and test sets by thresholding targets at 0.5:
+    This function splits samples into three sets by thresholding targets at 0.5:
         negatives: targets < 0.5
         positives: targets >= 0.5
-    and sampling approximately `valid_frac` from each class into the test set.
+    Within each class, the permuted indices are partitioned into three contiguous chunks:
+        test  = first  `test_frac`  of the class (sealed; never seen during training)
+        valid = next   `valid_frac` of the class (used for early stopping / checkpointing)
+        train = the remainder
 
     Args:
         data1, data2, data3, data_motif, data_plfold (np.ndarray):
@@ -214,44 +217,56 @@ def split_dataset(data1, data2, data3, data_motif, data_plfold, targets, valid_f
         targets (np.ndarray):
             Target array aligned with the modalities along the first axis. Shape (N,) or (N,1).
         valid_frac (float, optional):
-            Fraction of each class assigned to the test split. Default: 0.2.
+            Fraction of each class assigned to the validation split. Default: 0.15.
+        test_frac (float, optional):
+            Fraction of each class assigned to the (sealed) test split. Default: 0.15.
 
     Returns:
-        tuple[list[np.ndarray], list[np.ndarray]]:
-            (train, test) where each is a list:
-                train = [X_train1, X_train2, X_train3, X_train4, X_train5, Y_train]
-                test  = [X_test1,  X_test2,  X_test3,  X_test4,  X_test5,  Y_test]
+        tuple[list[np.ndarray], list[np.ndarray], list[np.ndarray]]:
+            (train, valid, test) where each is a list:
+                [X1, X2, X3, X4, X5, Y]
 
     Notes:
         - Indices are permuted independently within each class using np.random.permutation.
+        - Exactly two np.random.permutation calls are consumed (one per class), so the
+          split is fully reproducible given a fixed RNG seed.
         - The returned order concatenates positives first, then negatives (as implemented).
     """
     ind0 = np.where(targets < 0.5)[0]
     ind1 = np.where(targets >= 0.5)[0]
 
-    n_neg = int(len(ind0) * valid_frac)
-    n_pos = int(len(ind1) * valid_frac)
+    n_test_neg = int(len(ind0) * test_frac)
+    n_test_pos = int(len(ind1) * test_frac)
+    n_val_neg = int(len(ind0) * valid_frac)
+    n_val_pos = int(len(ind1) * valid_frac)
 
-    shuf_neg = np.random.permutation(len(ind0)) 
+    shuf_neg = np.random.permutation(len(ind0))
     shuf_pos = np.random.permutation(len(ind1))
 
-    X_train1 = np.concatenate((data1[ind1[shuf_pos[n_pos:]]], data1[ind0[shuf_neg[n_neg:]]]))
-    X_train2 = np.concatenate((data2[ind1[shuf_pos[n_pos:]]], data2[ind0[shuf_neg[n_neg:]]]))
-    X_train3 = np.concatenate((data3[ind1[shuf_pos[n_pos:]]], data3[ind0[shuf_neg[n_neg:]]]))
-    X_train4 = np.concatenate((data_motif[ind1[shuf_pos[n_pos:]]], data_motif[ind0[shuf_neg[n_neg:]]]))
-    X_train5 = np.concatenate((data_plfold[ind1[shuf_pos[n_pos:]]], data_plfold[ind0[shuf_neg[n_neg:]]]))
-    Y_train = np.concatenate((targets[ind1[shuf_pos[n_pos:]]], targets[ind0[shuf_neg[n_neg:]]]))
-    train = [X_train1, X_train2, X_train3, X_train4, X_train5, Y_train]
+    # Contiguous index ranges within each class: test | valid | train
+    test_pos = shuf_pos[:n_test_pos]
+    val_pos = shuf_pos[n_test_pos:n_test_pos + n_val_pos]
+    train_pos = shuf_pos[n_test_pos + n_val_pos:]
 
-    X_test1 = np.concatenate((data1[ind1[shuf_pos[:n_pos]]], data1[ind0[shuf_neg[:n_neg]]]))
-    X_test2 = np.concatenate((data2[ind1[shuf_pos[:n_pos]]], data2[ind0[shuf_neg[:n_neg]]]))
-    X_test3 = np.concatenate((data3[ind1[shuf_pos[:n_pos]]], data3[ind0[shuf_neg[:n_neg]]]))
-    X_test4 = np.concatenate((data_motif[ind1[shuf_pos[:n_pos]]], data_motif[ind0[shuf_neg[:n_neg]]]))
-    X_test5 = np.concatenate((data_plfold[ind1[shuf_pos[:n_pos]]], data_plfold[ind0[shuf_neg[:n_neg]]]))
-    Y_test = np.concatenate((targets[ind1[shuf_pos[:n_pos]]], targets[ind0[shuf_neg[:n_neg]]]))
-    test = [X_test1, X_test2, X_test3, X_test4, X_test5, Y_test]
+    test_neg = shuf_neg[:n_test_neg]
+    val_neg = shuf_neg[n_test_neg:n_test_neg + n_val_neg]
+    train_neg = shuf_neg[n_test_neg + n_val_neg:]
 
-    return train, test
+    def _gather(pos_sel, neg_sel):
+        return [
+            np.concatenate((data1[ind1[pos_sel]], data1[ind0[neg_sel]])),
+            np.concatenate((data2[ind1[pos_sel]], data2[ind0[neg_sel]])),
+            np.concatenate((data3[ind1[pos_sel]], data3[ind0[neg_sel]])),
+            np.concatenate((data_motif[ind1[pos_sel]], data_motif[ind0[neg_sel]])),
+            np.concatenate((data_plfold[ind1[pos_sel]], data_plfold[ind0[neg_sel]])),
+            np.concatenate((targets[ind1[pos_sel]], targets[ind0[neg_sel]])),
+        ]
+
+    train = _gather(train_pos, train_neg)
+    valid = _gather(val_pos, val_neg)
+    test = _gather(test_pos, test_neg)
+
+    return train, valid, test
 
 
 def param_num(model):

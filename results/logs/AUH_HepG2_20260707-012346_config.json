@@ -1,0 +1,22 @@
+{
+  "run_name": "AUH_HepG2_20260707-012346",
+  "data_file": "AUH_HepG2",
+  "data_path": "./dataset",
+  "Transformer_path": "./RBPformer",
+  "seed": 42,
+  "use_cpu": false,
+  "device": "cuda:0",
+  "device_num": 0,
+  "train": true,
+  "validate": false,
+  "dynamic_predict": false,
+  "max_length": 101,
+  "lr_cli": 0.001,
+  "early_stopping": 20,
+  "lr_schedule": {
+    "initial_lrate": 0.0016,
+    "drop": 0.8,
+    "epochs_drop": 5.0,
+    "warmup_epochs": 40
+  }
+}

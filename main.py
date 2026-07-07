@@ -228,8 +228,11 @@ def main(args):
         # Load motif prior matrix encoding known RBP binding preferences
         motif = get_motif_prior_matrix(args.data_file)
 
-        # Split all feature modalities and labels into training and test sets
+        # Split all feature modalities and labels into train / validation / test sets.
+        # The test partition is sealed here: it is never observed during training or
+        # model selection, and is reserved for --validate / --dynamic_predict.
         [train_emb, train_attn, train_struc, train_motif, train_biochem, train_label], \
+        [val_emb, val_attn, val_struc, val_motif, val_biochem, val_label], \
         [test_emb, test_attn, test_struc, test_motif, test_biochem, test_label] = split_dataset(
             Transformer_emb,
             attention_weight,
@@ -238,14 +241,15 @@ def main(args):
             biochem,
             label
         )
-        
-        # Wrap tensors into custom Dataset objects
+
+        # Wrap tensors into custom Dataset objects. Early stopping and checkpoint
+        # selection watch the validation set; the test set is left untouched.
         train_set = myDataset(train_emb, train_attn, train_struc, train_motif, train_biochem, train_label)
-        test_set = myDataset(test_emb, test_attn, test_struc, test_motif, test_biochem, test_label)
-        
+        val_set = myDataset(val_emb, val_attn, val_struc, val_motif, val_biochem, val_label)
+
         # Create DataLoaders for mini-batch training and evaluation
         train_loader = DataLoader(train_set, batch_size=32, shuffle=True)
-        test_loader = DataLoader(test_set, batch_size=32 * 8, shuffle=False)
+        val_loader = DataLoader(val_set, batch_size=32 * 8, shuffle=False)
         
         # Initialize the BRIDGE model
         model = BRIDGE().to(device)
@@ -304,8 +308,8 @@ def main(args):
             # Perform one epoch of training
             t_met = train(model, device, train_loader, criterion, optimizer, batch_size=32)
 
-            # Evaluate model on the test set
-            v_met, _, _ = validate(model, device, test_loader, criterion)
+            # Evaluate model on the validation set (drives early stopping + checkpointing)
+            v_met, _, _ = validate(model, device, val_loader, criterion)
 
             # Warm-up followed by step-wise exponential learning rate decay
             if epoch <= warmup_epochs:
@@ -425,9 +429,11 @@ def main(args):
         # Load motif prior matrix
         motif = get_motif_prior_matrix(args.data_file)
 
-        # Split dataset into training and test subsets
-        # Only the test split is used for validation
+        # Split dataset into train / validation / test subsets.
+        # Only the sealed test split is used for evaluation here; it matches the
+        # partition held out during --train (same seed -> identical split).
         [train_emb, train_attn, train_struc, train_motif, train_biochem, train_label], \
+        [val_emb, val_attn, val_struc, val_motif, val_biochem, val_label], \
         [test_emb, test_attn, test_struc, test_motif, test_biochem, test_label] = split_dataset(
             Transformer_emb,
             attention_weight,
@@ -513,8 +519,11 @@ def main(args):
         biochem = dealwithdata(args.data_file).transpose([0, 2, 1])
         motif = get_motif_prior_matrix(args.data_file)
 
-        # Split dataset into training and test subsets
+        # Split dataset into train / validation / test subsets.
+        # Cross cell-line prediction is evaluated on the sealed test split for
+        # consistency with --validate.
         [train_emb, train_attn, train_struc, train_motif, train_biochem, train_label], \
+        [val_emb, val_attn, val_struc, val_motif, val_biochem, val_label], \
         [test_emb, test_attn, test_struc, test_motif, test_biochem, test_label] = split_dataset(
             Transformer_emb,
             attention_weight,
