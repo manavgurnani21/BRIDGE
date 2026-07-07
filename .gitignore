@@ -36,6 +36,7 @@ Thumbs.db
 /utils/motif_prior/*_HEK293T/
 /utils/motif_prior/*_H9/
 /results/model/*
+/slurms/logs/*
 *.tmp
 
 # --- Figures ---

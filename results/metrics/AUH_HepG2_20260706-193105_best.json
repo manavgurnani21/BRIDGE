@@ -1,0 +1,14 @@
+{
+  "run_name": "AUH_HepG2_20260706-193105",
+  "data_file": "AUH_HepG2",
+  "best_epoch": 62,
+  "best_val_auc": 0.8960557499999999,
+  "best_val_acc": 0.8113333333333334,
+  "best_val_prc": 0.8302293745668675,
+  "best_val_mcc": 0.5646418606141489,
+  "seed": 42,
+  "device": "cuda:0",
+  "checkpoint": "/anvil/scratch/x-mgurnani/BRIDGE/results/model/AUH_HepG2_20260706-193105.pth",
+  "log_file": "/anvil/scratch/x-mgurnani/BRIDGE/results/logs/AUH_HepG2_20260706-193105.log",
+  "config_file": "/anvil/scratch/x-mgurnani/BRIDGE/results/logs/AUH_HepG2_20260706-193105_config.json"
+}
