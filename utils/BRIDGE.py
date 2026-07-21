@@ -154,6 +154,18 @@ from torch_geometric.nn import GCNConv
 from typing import List
 
 
+# Channel width contributed to the fused ADPNet input by each modality branch.
+# Used by feature-ablation: dropping a feature shrinks the fusion (and head) input
+# from 512 by the corresponding amount. Sum of all five == 512.
+FEATURE_CHANNELS = {
+    "gcn": 32,        # graph branch  (GCNConv 512 -> 32)
+    "sequence": 256,  # RBPformer embedding branch (conv_bert + multiscale_bert)
+    "structure": 128, # icSHAPE branch (conv_str + multiscale_str)
+    "motif": 64,      # STREME motif-prior branch (conv_motif + multiscale_motif)
+    "biochem": 32,    # biochemical k-mer branch (conv_biochem + multiscale_biochem)
+}
+
+
 class ADPNetblock(nn.Module):
     """
     Adaptive Pyramidal Network (ADPNet) block.
@@ -313,28 +325,75 @@ class BRIDGE(nn.Module):
             modalities (Conv1d branches) and are fused later via concatenation.
 
     """
-    def __init__(self, k: int = 3) -> None:
+    def __init__(
+        self,
+        k: int = 3,
+        drop_feature: str = None,
+        kan_to_mlp: bool = False,
+        adpnet_to_gap: bool = False,
+    ) -> None:
+        """
+        Args:
+            k: convolution kernel size for the structure/biochem branches (as before).
+            drop_feature: if set, removes one input-feature branch entirely and shrinks the
+                fused ADPNet/GAP input from 512 by ``FEATURE_CHANNELS[drop_feature]``. One of
+                ``{"gcn","sequence","structure","motif","biochem"}`` or ``None`` (baseline).
+            kan_to_mlp: if True, replace every ``multiscaleKAN`` block with the structurally
+                identical ``multiscaleMLP`` (Conv1d in place of the KAN operator).
+            adpnet_to_gap: if True, replace the ``ADPNet`` head with ``GAPHead`` (global
+                average pool over length -> ``Linear``).
+
+        With all three at their defaults this reproduces the original baseline model exactly
+        (identical module construction order, so fixed-seed initialization is unchanged).
+        """
         super().__init__()
+        if drop_feature is not None and drop_feature not in FEATURE_CHANNELS:
+            raise ValueError(
+                f"Unknown drop_feature {drop_feature!r}; expected one of "
+                f"{list(FEATURE_CHANNELS)} or None"
+            )
+        self.drop_feature = drop_feature
+        self.kan_to_mlp = kan_to_mlp
+        self.adpnet_to_gap = adpnet_to_gap
+
         number_of_layers = int(log(101-k+1, 2))
+        # Multiscale block class: KAN (baseline) or its MLP (Conv1d) analog.
+        ms = multiscaleMLP if kan_to_mlp else multiscaleKAN
 
         # ===== Modality-specific projection layers =====
-        self.conv_bert = Conv1d(512, 256, kernel_size=(1,), stride=1)
-        self.conv_str = Conv1d(1, 128, kernel_size=(k,), stride=1, same_padding=True)
-        self.conv_motif = Conv1d(1, 64, kernel_size=(1,), stride=1)
-        self.conv_biochem = Conv1d(99, 32, kernel_size=(k,), stride=1, same_padding=True)
-        
-        # ===== Multiscale KAN feature extractors =====
-        self.multiscale_bert = multiscaleKAN(256, 128)
-        self.multiscale_str = multiscaleKAN(128, 64)
-        self.multiscale_motif = multiscaleKAN(64, 32)
-        self.multiscale_biochem = multiscaleKAN(32, 16)
-        
-        # ===== ADPNet backbone =====
-        self.adpnet = ADPNet(512, number_of_layers)
-        
+        # NOTE: construction order below is kept identical to the original model so that,
+        # for the baseline config, per-layer RNG consumption (and thus fixed-seed init) is
+        # byte-for-byte unchanged. Ablated branches are simply skipped.
+        if drop_feature != "sequence":
+            self.conv_bert = Conv1d(512, 256, kernel_size=(1,), stride=1)
+        if drop_feature != "structure":
+            self.conv_str = Conv1d(1, 128, kernel_size=(k,), stride=1, same_padding=True)
+        if drop_feature != "motif":
+            self.conv_motif = Conv1d(1, 64, kernel_size=(1,), stride=1)
+        if drop_feature != "biochem":
+            self.conv_biochem = Conv1d(99, 32, kernel_size=(k,), stride=1, same_padding=True)
+
+        # ===== Multiscale feature extractors (KAN or MLP) =====
+        if drop_feature != "sequence":
+            self.multiscale_bert = ms(256, 128)
+        if drop_feature != "structure":
+            self.multiscale_str = ms(128, 64)
+        if drop_feature != "motif":
+            self.multiscale_motif = ms(64, 32)
+        if drop_feature != "biochem":
+            self.multiscale_biochem = ms(32, 16)
+
+        # ===== Classifier head (ADPNet pyramid, or GAP) over the fused features =====
+        fusion_ch = 512 - FEATURE_CHANNELS.get(drop_feature, 0)
+        if adpnet_to_gap:
+            self.adpnet = GAPHead(fusion_ch)
+        else:
+            self.adpnet = ADPNet(fusion_ch, number_of_layers)
+
         # ===== Graph Convolution =====
-        self.gcn = GCNConv(512, 32)
-        
+        if drop_feature != "gcn":
+            self.gcn = GCNConv(512, 32)
+
         # ===== Initialize weights =====
         self._initialize_weights()
 
@@ -420,53 +479,66 @@ class BRIDGE(nn.Module):
         Output:
             Model prediction produced by ADPNet after multimodal fusion and multiscale KAN feature extractors.
         """
+        # Branch outputs are collected in the original fusion order
+        # [gcn, sequence, structure, motif, biochem]; an ablated branch is skipped so the
+        # concatenated channel count matches the (possibly shrunk) head input width.
+        feats = []
+
         # ===== Graph branch (GCN over tokens) =====
-        node_features = bert_embedding  # (B, 512, L)
-        adj = attn                      # (B, L, L)
-        
-        # Here, `num_nodes` is taken from adj.shape[1] (i.e., L)
-        batch_size, num_nodes, _ = adj.shape
-        
-        # Build edge indices per sample by taking all nonzero entries in adjacency.
-        edge_index_list = []
-        for i in range(batch_size):
-            edge_index = adj[i].nonzero(as_tuple=False).t().contiguous()
-            edge_index_list.append(edge_index)
-        edge_index = torch.cat(edge_index_list, dim=1)
-        
-        # Convert node features from (B, 512, L) -> (B*L, 512) to feed into PyG GCNConv
-        node_features = node_features.permute(0, 2, 1).contiguous().view(-1, 512)
-        x = self.gcn(node_features, edge_index)
-        
-        # Convert back to (B, 32, L)
-        x = x.view(batch_size, num_nodes, -1).permute(0, 2, 1).contiguous()
-        
+        if self.drop_feature != "gcn":
+            node_features = bert_embedding  # (B, 512, L)
+            adj = attn                      # (B, L, L)
+
+            # Here, `num_nodes` is taken from adj.shape[1] (i.e., L)
+            batch_size, num_nodes, _ = adj.shape
+
+            # Build edge indices per sample by taking all nonzero entries in adjacency.
+            edge_index_list = []
+            for i in range(batch_size):
+                edge_index = adj[i].nonzero(as_tuple=False).t().contiguous()
+                edge_index_list.append(edge_index)
+            edge_index = torch.cat(edge_index_list, dim=1)
+
+            # Convert node features from (B, 512, L) -> (B*L, 512) to feed into PyG GCNConv
+            node_features = node_features.permute(0, 2, 1).contiguous().view(-1, 512)
+            xg = self.gcn(node_features, edge_index)
+
+            # Convert back to (B, 32, L)
+            xg = xg.view(batch_size, num_nodes, -1).permute(0, 2, 1).contiguous()
+            feats.append(xg)
+
         # ===== Embedding branch =====
-        x0 = self.conv_bert(bert_embedding)
-        x0 = self.multiscale_bert(x0)
-        
+        if self.drop_feature != "sequence":
+            x0 = self.conv_bert(bert_embedding)
+            x0 = self.multiscale_bert(x0)
+            feats.append(x0)
+
         # ===== Structure branch =====
-        x1 = structure
-        x1 = self.conv_str(x1)
-        x1 = self.multiscale_str(x1)
-        
+        if self.drop_feature != "structure":
+            x1 = self.conv_str(structure)
+            x1 = self.multiscale_str(x1)
+            feats.append(x1)
+
         # ===== Motif branch =====
-        x2 = motif
-        x2 = self.conv_motif(x2)
-        x2 = self.multiscale_motif(x2)
-        
-        # Pad motif features to the fixed target length (101)
-        total_padding = 101 - x2.size(2)
-        left_pad = total_padding // 2
-        right_pad = total_padding - left_pad
-        x2 = F.pad(x2, (left_pad, right_pad), "constant", 0)
+        if self.drop_feature != "motif":
+            x2 = self.conv_motif(motif)
+            x2 = self.multiscale_motif(x2)
+
+            # Pad motif features to the fixed target length (101)
+            total_padding = 101 - x2.size(2)
+            left_pad = total_padding // 2
+            right_pad = total_padding - left_pad
+            x2 = F.pad(x2, (left_pad, right_pad), "constant", 0)
+            feats.append(x2)
 
         # ===== Biochemical branch =====
-        x3 = self.conv_biochem(biochem)
-        x3 = self.multiscale_biochem(x3)
-        
+        if self.drop_feature != "biochem":
+            x3 = self.conv_biochem(biochem)
+            x3 = self.multiscale_biochem(x3)
+            feats.append(x3)
+
         # ===== Fusion =====
-        x = torch.cat([x, x0, x1, x2, x3], dim=1)
+        x = torch.cat(feats, dim=1)
         return self.adpnet(x)
     
 
@@ -515,3 +587,53 @@ class multiscaleKAN(nn.Module):
         x0 = self.conv0(x)
         x1 = self.conv1(x)
         return torch.cat([x0,x1], dim=1) + x
+
+
+class multiscaleMLP(nn.Module):
+    """
+    MLP analog of :class:`multiscaleKAN` for the ``kan_to_mlp`` module ablation.
+
+    Structurally identical to ``multiscaleKAN`` (same 2-path residual, same channel widths),
+    but each KAN operator (``SimpleConvKAN_1layer``) is replaced by the project's standard
+    ``Conv1d`` block (Conv1d -> BatchNorm -> ReLU -> dropout) at the *same* kernel sizes
+    (path0: k=1; path1: k=1 then k=3). Because ``multiscaleKAN`` satisfies ``2*out == in``,
+    the concatenated two paths add cleanly to the residual, so the output channel count is
+    ``in_channel`` — a drop-in replacement that isolates KAN-vs-conv as the only change.
+
+    Args:
+        in_channel (int): Number of input channels.
+        out_channel (int): Per-path output channels (must satisfy ``2*out_channel == in_channel``).
+    """
+    def __init__(self, in_channel: int, out_channel: int) -> None:
+        super(multiscaleMLP, self).__init__()
+        self.conv0 = Conv1d(in_channel, out_channel, kernel_size=(1,), same_padding=False)
+        self.conv1 = nn.Sequential(
+            Conv1d(in_channel, out_channel, kernel_size=(1,), same_padding=False, bn=False),
+            Conv1d(out_channel, out_channel, kernel_size=(3,), same_padding=True),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x0 = self.conv0(x)
+        x1 = self.conv1(x)
+        return torch.cat([x0, x1], dim=1) + x
+
+
+class GAPHead(nn.Module):
+    """
+    Global-average-pooling classifier head for the ``adpnet_to_gap`` module ablation.
+
+    Replaces the entire ADPNet pyramidal refinement: averages each channel over the length
+    axis (``(B, C, L) -> (B, C)``), then applies a single ``Linear(C, 1)`` to produce the
+    binding logit. Mirrors the baseline's final ``Linear`` classifier (which ADPNet also ends
+    with) so only the pyramid is ablated, not the classifier itself.
+
+    Args:
+        filter_num (int): Number of fused input channels (C).
+    """
+    def __init__(self, filter_num: int) -> None:
+        super(GAPHead, self).__init__()
+        self.classifier = nn.Linear(filter_num, 1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = x.mean(dim=-1)          # (B, C, L) -> (B, C)
+        return self.classifier(x)   # (B, 1)

@@ -10,18 +10,11 @@ import json
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.utils.data
-from torch.utils.data import DataLoader
-from torch.optim.lr_scheduler import OneCycleLR, CosineAnnealingLR
 
-from utils.gen_transformer_embedding import build_Transformer_embeddings
-from utils.motif_prior.motif_prior import get_motif_prior_matrix
 from utils.BRIDGE import BRIDGE
-from utils.train_loop import train, validate
-from utils.utils import myDataset, param_num, split_dataset, resolve_dynamic_model_name
-from utils.structureFeatures import build_structure_tensor
-from utils.FeatureEncoding import dealwithdata
-from utils.dataloaders import read_fasta
+from utils.train_loop import validate, fit_bridge
+from utils.utils import param_num, resolve_dynamic_model_name
+from utils.data_pipeline import build_split_loaders
 
 
 def log_print(text, color=None, on_color=None, attrs=None):
@@ -202,55 +195,18 @@ def main(args):
         }
 
 
-        # Construct paths to positive and negative FASTA files
-        neg_path = os.path.join(data_path, file_name + '_neg.fa')
-        pos_path = os.path.join(data_path, file_name + '_pos.fa')
-        
-        # Load nucleotide sequences, secondary structure annotations, and labels
-        sequences, structs, label = read_fasta(neg_path, pos_path)
-        
-        # Generate sequence embeddings and attention maps using RBPformer
-        Transformer_emb, attention_weight = build_Transformer_embeddings(
-            sequences=list(sequences),
+        # Build train/val/test loaders (features computed once via the shared pipeline).
+        # Early stopping + checkpoint selection watch the validation set; the sealed test
+        # split is left untouched here and reserved for --validate / --dynamic_predict.
+        train_loader, val_loader, _ = build_split_loaders(
+            data_file=file_name,
+            data_path=data_path,
             transformer_path=args.Transformer_path,
             device=device,
-            k=1,
-            transpose_to_ch_first=True,
-            Transformer_batch_size=Transformer_batch_size
+            seed=args.seed,
+            max_length=max_length,
+            transformer_batch_size=Transformer_batch_size,
         )
-        
-        # Convert structural annotations into a fixed-length tensor representation
-        structure = build_structure_tensor(structs, max_length)
-        
-        # Load and format biochemical feature tensors
-        biochem = dealwithdata(args.data_file).transpose([0, 2, 1])
-        
-        # Load motif prior matrix encoding known RBP binding preferences
-        motif = get_motif_prior_matrix(args.data_file)
-
-        # Split all feature modalities and labels into train / validation / test sets.
-        # The test partition is sealed here: it is never observed during training or
-        # model selection, and is reserved for --validate / --dynamic_predict.
-        [train_emb, train_attn, train_struc, train_motif, train_biochem, train_label], \
-        [val_emb, val_attn, val_struc, val_motif, val_biochem, val_label], \
-        [test_emb, test_attn, test_struc, test_motif, test_biochem, test_label] = split_dataset(
-            Transformer_emb,
-            attention_weight,
-            structure,
-            motif,
-            biochem,
-            label
-        )
-
-        # Wrap tensors into custom Dataset objects. Early stopping and checkpoint
-        # selection watch the validation set; the test set is left untouched.
-        train_set = myDataset(train_emb, train_attn, train_struc, train_motif, train_biochem, train_label)
-        val_set = myDataset(val_emb, val_attn, val_struc, val_motif, val_biochem, val_label)
-
-        # Create DataLoaders for mini-batch training and evaluation
-        train_loader = DataLoader(train_set, batch_size=32, shuffle=True)
-        val_loader = DataLoader(val_set, batch_size=32 * 8, shuffle=False)
-        
         # Initialize the BRIDGE model
         model = BRIDGE().to(device)
         
@@ -265,8 +221,7 @@ def main(args):
         drop = 0.8
         epochs_drop = 5.0
         warmup_epochs = 40
-        lrs = []
-        
+
         # include schedule/loss/optimizer info in config
         config.update(
             {
@@ -287,76 +242,29 @@ def main(args):
         log_both(f"[DIR] logs={logs_dir} model={model_dir} metrics={metrics_dir}")
         log_both(f"[CFG] {config_path}")
         
-        # Track best validation metrics for model selection
-        best_auc = 0
-        best_acc = 0
-        best_mcc = 0
-        best_prc = 0
-        best_epoch = 0
-        early_stopping = args.early_stopping
-        
         # Print total number of model parameters
         param_num(model)
-        
-        ## Directory for saving trained model checkpoints
-        # model_save_path = args.model_save_path
-        # if not os.path.exists(model_save_path):
-        #     os.makedirs(model_save_path)
-        
-        # Training loop
-        for epoch in range(1, 201):
-            # Perform one epoch of training
-            t_met = train(model, device, train_loader, criterion, optimizer, batch_size=32)
 
-            # Evaluate model on the validation set (drives early stopping + checkpointing)
-            v_met, _, _ = validate(model, device, val_loader, criterion)
+        # Train with the shared loop: warm-up + step-decay LR, val-AUC checkpoint selection,
+        # and early stopping. The best checkpoint is saved to {model_dir}/{run_name}.pth.
+        best = fit_bridge(
+            model, device, train_loader, val_loader, criterion, optimizer,
+            max_epochs=200,
+            warmup_epochs=warmup_epochs,
+            initial_lrate=initial_lrate,
+            drop=drop,
+            epochs_drop=epochs_drop,
+            early_stopping=args.early_stopping,
+            ckpt_path=model_dir / f"{run_name}.pth",
+            log_fn=lambda m: log_both(m, color="green", attrs=["bold"]),
+            tag=file_name,
+        )
+        best_auc = best["best_val_auc"]
+        best_acc = best["best_val_acc"]
+        best_mcc = best["best_val_mcc"]
+        best_prc = best["best_val_prc"]
+        best_epoch = best["best_epoch"]
 
-            # Warm-up followed by step-wise exponential learning rate decay
-            if epoch <= warmup_epochs:
-                lr = 0.001 * (1.6 * epoch / warmup_epochs)
-            else:
-                import math
-                lr = initial_lrate * math.pow(
-                    drop, math.floor((epoch - warmup_epochs) / epochs_drop)
-                )
-
-            # Update optimizer learning rate
-            for param_group in optimizer.param_groups:
-                param_group['lr'] = lr
-            lrs.append(lr)
-
-            color_best = 'green'
-
-            # Save model checkpoint if validation AUC improves
-            if best_auc < v_met.auc:
-                best_auc = v_met.auc
-                best_acc = v_met.acc
-                best_mcc = v_met.mcc
-                best_prc = v_met.prc
-                best_epoch = epoch
-                color_best = 'red'
-                # path_name = os.path.join(model_save_path, file_name+'.pth')
-                # torch.save(model.state_dict(), path_name)
-                ckpt_path = model_dir / f"{run_name}.pth"
-                torch.save(model.state_dict(), ckpt_path)
-                
-            # Early stopping based on validation performance
-            if epoch - best_epoch > early_stopping:
-                print("Early stop at %d, %s " % (epoch, 'BRIDGE'))
-                break
-            
-            # Log training metrics
-            line = '{} \t Train Epoch: {}     avg.loss: {:.4f} Acc: {:.2f}%, AUC: {:.4f}, PRC: {:.4f}, MCC: {:.4f}, lr: {:.6f}'.format(
-                file_name, epoch, t_met.other[0], t_met.acc, t_met.auc, t_met.prc, t_met.mcc, lr)
-            # log_print(line, color='green', attrs=['bold'])
-            log_both(line, color="green", attrs=["bold"])
-            
-            # Log validation metrics and best epoch so far
-            line = '{} \t Test  Epoch: {}     avg.loss: {:.4f} Acc: {:.2f}%, AUC: {:.4f} ({:.4f}), PRC: {:.4f}, MCC: {:.4f}, {}'.format(
-                file_name, epoch, v_met.other[0], v_met.acc, v_met.auc, best_auc, v_met.prc, v_met.mcc, best_epoch)
-            # log_print(line, color=color_best, attrs=['bold'])
-            log_both(line, color=color_best, attrs=["bold"])
-        
         # Report best validation performance
         # print("{} auc: {:.4f} acc: {:.4f} prc: {:.4f} mcc: {:.4f}".format(file_name, best_auc, best_acc, best_prc, best_mcc))
         summary_line = (
@@ -404,50 +312,17 @@ def main(args):
         # Fix random seed to ensure deterministic evaluation
         fix_seed(args.seed)
 
-        # Construct paths to input FASTA files
-        neg_path = os.path.join(data_path, file_name + '_neg.fa')
-        pos_path = os.path.join(data_path, file_name + '_pos.fa')
-
-        # Load sequences, secondary structure annotations, and labels
-        sequences, structs, label = read_fasta(neg_path, pos_path)
-        
-        # Generate transformer-based sequence embeddings and attention maps
-        Transformer_emb, attention_weight = build_Transformer_embeddings(
-            sequences=list(sequences),
+        # Build loaders (features computed once); evaluate only on the sealed test split,
+        # which matches the partition held out during --train (same seed -> identical split).
+        _, _, test_loader = build_split_loaders(
+            data_file=file_name,
+            data_path=data_path,
             transformer_path=args.Transformer_path,
             device=device,
-            k=1,
-            transpose_to_ch_first=True
+            seed=args.seed,
+            max_length=max_length,
+            transformer_batch_size=args.batch_size,
         )
-
-        # Build fixed-length structural feature tensor
-        structure = build_structure_tensor(structs, max_length)
-
-        # Load biochemical features
-        biochem = dealwithdata(args.data_file).transpose([0, 2, 1])
-
-        # Load motif prior matrix
-        motif = get_motif_prior_matrix(args.data_file)
-
-        # Split dataset into train / validation / test subsets.
-        # Only the sealed test split is used for evaluation here; it matches the
-        # partition held out during --train (same seed -> identical split).
-        [train_emb, train_attn, train_struc, train_motif, train_biochem, train_label], \
-        [val_emb, val_attn, val_struc, val_motif, val_biochem, val_label], \
-        [test_emb, test_attn, test_struc, test_motif, test_biochem, test_label] = split_dataset(
-            Transformer_emb,
-            attention_weight,
-            structure,
-            motif,
-            biochem,
-            label
-        )
-
-        # Construct Dataset and DataLoader for evaluation
-        test_set = myDataset(
-            test_emb, test_attn, test_struc, test_motif, test_biochem, test_label
-        )
-        test_loader = DataLoader(test_set, batch_size=32 * 8, shuffle=False)
 
         # Initialize model and load saved checkpoint
         model = BRIDGE().to(device)
@@ -498,46 +373,17 @@ def main(args):
             print('Model file does not exitsts! Please train first and save the model')
             exit()
 
-        # Load input FASTA files
-        neg_path = os.path.join(data_path, file_name + '_neg.fa')
-        pos_path = os.path.join(data_path, file_name + '_pos.fa')
-
-        # Read sequences, structures, and labels
-        sequences, structs, label = read_fasta(neg_path, pos_path)
-        
-        # Generate transformer embeddings and attention weights
-        Transformer_emb, attention_weight = build_Transformer_embeddings(
-            sequences=list(sequences),
+        # Build loaders (features computed once); cross cell-line prediction is evaluated on
+        # the sealed test split for consistency with --validate.
+        _, _, test_loader = build_split_loaders(
+            data_file=file_name,
+            data_path=data_path,
             transformer_path=args.Transformer_path,
             device=device,
-            k=1,
-            transpose_to_ch_first=True
+            seed=args.seed,
+            max_length=max_length,
+            transformer_batch_size=args.batch_size,
         )
-
-        # Build structural, biochemical, and motif prior features
-        structure = build_structure_tensor(structs, max_length)
-        biochem = dealwithdata(args.data_file).transpose([0, 2, 1])
-        motif = get_motif_prior_matrix(args.data_file)
-
-        # Split dataset into train / validation / test subsets.
-        # Cross cell-line prediction is evaluated on the sealed test split for
-        # consistency with --validate.
-        [train_emb, train_attn, train_struc, train_motif, train_biochem, train_label], \
-        [val_emb, val_attn, val_struc, val_motif, val_biochem, val_label], \
-        [test_emb, test_attn, test_struc, test_motif, test_biochem, test_label] = split_dataset(
-            Transformer_emb,
-            attention_weight,
-            structure,
-            motif,
-            biochem,
-            label
-        )
-
-        # Create Dataset and DataLoader for dynamic prediction
-        test_set = myDataset(
-            test_emb, test_attn, test_struc, test_motif, test_biochem, test_label
-        )
-        test_loader = DataLoader(test_set, batch_size=32 * 8, shuffle=False)
 
         # Load dynamic BRIDGE model checkpoint
         model = BRIDGE().to(device)

@@ -127,6 +127,7 @@ Example
 """
 
 from __future__ import print_function
+import math
 from tqdm import tqdm
 import numpy as np
 import torch
@@ -214,6 +215,108 @@ def train(model, device, train_loader, criterion, optimizer, batch_size):
         optimizer.step()
 
     return met
+
+
+def fit_bridge(
+    model,
+    device,
+    train_loader,
+    val_loader,
+    criterion,
+    optimizer,
+    max_epochs=200,
+    warmup_epochs=40,
+    base_lr=0.001,
+    warmup_scale=1.6,
+    initial_lrate=0.0016,
+    drop=0.8,
+    epochs_drop=5.0,
+    early_stopping=10,
+    ckpt_path=None,
+    train_batch_size=32,
+    log_fn=None,
+    tag="",
+):
+    """Train a BRIDGE model with the standard schedule and return the best-epoch metrics.
+
+    This encapsulates the per-run training loop that was previously inlined in
+    ``main.py``'s ``--train`` block: warm-up + step-decay LR, val-AUC-driven checkpoint
+    selection, and early stopping. It reuses :func:`train` and :func:`validate`. Behavior is
+    identical to the original loop at default arguments.
+
+    Args:
+        model, device, train_loader, val_loader, criterion, optimizer: standard training objects.
+        max_epochs: hard cap on epochs (original loop ran ``range(1, 201)``).
+        warmup_epochs: linear warm-up length; LR = ``base_lr * warmup_scale * epoch/warmup_epochs``.
+        initial_lrate, drop, epochs_drop: post-warmup step-decay schedule.
+        early_stopping: stop when ``epoch - best_epoch > early_stopping``.
+        ckpt_path: if set, best-so-far ``state_dict`` is saved here whenever val AUC improves.
+        train_batch_size: passed to :func:`train` for degenerate-batch detection.
+        log_fn: optional ``callable(str)`` for per-epoch logging (e.g. write to a logfile).
+        tag: short label prefixed to log lines (e.g. dataset/config name).
+
+    Returns:
+        dict: ``{best_epoch, best_val_auc, best_val_acc, best_val_prc, best_val_mcc,
+        stopped_epoch}``.
+    """
+    def _log(msg):
+        if log_fn is not None:
+            log_fn(msg)
+
+    best_auc = 0.0
+    best_acc = 0.0
+    best_mcc = 0.0
+    best_prc = 0.0
+    best_epoch = 0
+    stopped_epoch = 0
+
+    for epoch in range(1, max_epochs + 1):
+        stopped_epoch = epoch
+        t_met = train(model, device, train_loader, criterion, optimizer, batch_size=train_batch_size)
+        v_met, _, _ = validate(model, device, val_loader, criterion)
+
+        # Warm-up followed by step-wise exponential learning-rate decay.
+        if epoch <= warmup_epochs:
+            lr = base_lr * (warmup_scale * epoch / warmup_epochs)
+        else:
+            lr = initial_lrate * math.pow(drop, math.floor((epoch - warmup_epochs) / epochs_drop))
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = lr
+
+        if best_auc < v_met.auc:
+            best_auc = v_met.auc
+            best_acc = v_met.acc
+            best_mcc = v_met.mcc
+            best_prc = v_met.prc
+            best_epoch = epoch
+            if ckpt_path is not None:
+                torch.save(model.state_dict(), ckpt_path)
+
+        # Early stopping based on validation performance.
+        if epoch - best_epoch > early_stopping:
+            _log("{} Early stop at {}".format(tag, epoch))
+            break
+
+        _log(
+            "{} Train Epoch: {}  avg.loss: {:.4f} Acc: {:.2f}%, AUC: {:.4f}, PRC: {:.4f}, "
+            "MCC: {:.4f}, lr: {:.6f}".format(
+                tag, epoch, t_met.other[0], t_met.acc, t_met.auc, t_met.prc, t_met.mcc, lr)
+        )
+        _log(
+            "{} Valid Epoch: {}  avg.loss: {:.4f} Acc: {:.2f}%, AUC: {:.4f} ({:.4f}), "
+            "PRC: {:.4f}, MCC: {:.4f}, best_epoch: {}".format(
+                tag, epoch, v_met.other[0], v_met.acc, v_met.auc, best_auc, v_met.prc,
+                v_met.mcc, best_epoch)
+        )
+
+    return {
+        "best_epoch": int(best_epoch),
+        "best_val_auc": float(best_auc),
+        "best_val_acc": float(best_acc),
+        "best_val_prc": float(best_prc),
+        "best_val_mcc": float(best_mcc),
+        "stopped_epoch": int(stopped_epoch),
+    }
 
 
 def validate(model, device, test_loader, criterion):
