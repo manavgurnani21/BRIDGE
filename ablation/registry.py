@@ -47,6 +47,12 @@ MODULE_CONFIGS = [
         "component_removed": "adpnet",
         "kwargs": {"adpnet_to_gap": True},
     },
+    {
+        "name": "adpnet_to_attnpool",
+        "ablation_type": "module",
+        "component_removed": "adpnet",
+        "kwargs": {"adpnet_to_attnpool": True},
+    },
 ]
 
 

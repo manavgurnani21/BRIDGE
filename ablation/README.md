@@ -22,6 +22,7 @@ evaluated on the sealed 15% test split (see `../docs/three_way_split_changes.md`
 |--------|------|
 | `kan_to_mlp` | all four `multiscaleKAN` blocks → `multiscaleMLP` (Conv1d, same topology) |
 | `adpnet_to_gap` | `ADPNet` head → global-average-pool + `Linear(512→1)` |
+| `adpnet_to_attnpool` | `ADPNet` head → learned attention pool (`Linear(512→1)` scores, softmax over length) + `Linear(512→1)` |
 
 All variants are just `BRIDGE(**kwargs)` (see `registry.py`); `BRIDGE()` defaults reproduce
 the exact baseline. Add a new ablation by adding one entry to `registry.py`.

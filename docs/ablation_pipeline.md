@@ -44,6 +44,7 @@ feeds only `gcn`. They are independent branches, so dropping one does not affect
 |-----------------|------|
 | `kan_to_mlp` | all four `multiscaleKAN` blocks → `multiscaleMLP`: identical 2-path residual topology but the project's `Conv1d` (Conv+BN+ReLU) replaces the KAN operator at the same kernel sizes (k=1, k=3). `2*out==in` invariant preserved, so channels are unchanged — isolates KAN-vs-conv. |
 | `adpnet_to_gap` | entire `ADPNet` head → global-average-pool over the length axis (`512×101 → 512` vector) then `Linear(512→1)`. |
+| `adpnet_to_attnpool` | entire `ADPNet` head → learned attention pool: per-position score (`Linear(512→1)`), softmax over the length axis, weighted sum (`512×101 → 512`), then the same `Linear(512→1)` classifier. Parameter count is close to `adpnet_to_gap` (one extra scoring `Linear`), so a delta vs. GAP isolates content-based weighting from added capacity — the first of three planned ADPNet-replacement experiments (GAP already covers naive uniform pooling as the other end of that spectrum). |
 
 ## Design
 
@@ -51,15 +52,17 @@ All variants are just `BRIDGE(**kwargs)`; `BRIDGE()` at defaults reproduces the 
 
 ### A. Parametrized model — `utils/BRIDGE.py`
 ```python
-BRIDGE(k=3, drop_feature=None, kan_to_mlp=False, adpnet_to_gap=False)
+BRIDGE(k=3, drop_feature=None, kan_to_mlp=False, adpnet_to_gap=False, adpnet_to_attnpool=False)
 ```
 - `FEATURE_CHANNELS = {"gcn":32,"sequence":256,"structure":128,"motif":64,"biochem":32}`.
 - `__init__` builds only the enabled branches; `fusion_ch = 512 - FEATURE_CHANNELS.get(drop_feature, 0)`;
-  uses `multiscaleMLP` when `kan_to_mlp`; head is `GAPHead(fusion_ch)` when `adpnet_to_gap`
-  else `ADPNet(fusion_ch, ...)`. **Module construction order is preserved** so baseline
-  fixed-seed init is byte-identical to the pre-change model.
+  uses `multiscaleMLP` when `kan_to_mlp`; head is `GAPHead(fusion_ch)` when `adpnet_to_gap`,
+  `AttnPoolHead(fusion_ch)` when `adpnet_to_attnpool`, else `ADPNet(fusion_ch, ...)`
+  (`adpnet_to_gap` and `adpnet_to_attnpool` are mutually exclusive — one head swap at a time).
+  **Module construction order is preserved** so baseline fixed-seed init is byte-identical to
+  the pre-change model.
 - `forward` builds the fusion list in the original order, omitting the dropped branch.
-- New classes: `multiscaleMLP`, `GAPHead`.
+- New classes: `multiscaleMLP`, `GAPHead`, `AttnPoolHead`.
 
 ### B. Reusable training/data — light refactor
 - `utils/data_pipeline.py` — `build_split_loaders(...)` (feature build → 70/15/15 split →
@@ -80,10 +83,10 @@ BRIDGE(k=3, drop_feature=None, kan_to_mlp=False, adpnet_to_gap=False)
   `_long.csv` (tidy), `.parquet`; fill `delta_*` (metric − baseline) per dataset; print a
   coverage report of missing cells.
 
-### D. Scale-out — 261 datasets × 8 configs = 2,088 runs
+### D. Scale-out — 261 datasets × 9 configs = 2,349 runs
 - **Sharded SLURM array** (~38 tasks, `SHARD_SIZE=7` datasets/shard): each array task loops
   its shard of datasets in one Python process, building features once per dataset and
-  training all 8 configs. Batching datasets per task (instead of one task per dataset) exists
+  training all 9 configs. Batching datasets per task (instead of one task per dataset) exists
   to fix an observed failure mode: when many array tasks call `conda activate` + launch
   `python` in the same instant, Python's interpreter bootstrap can crash with `Fatal Python
   error: init_fs_encoding` under shared-filesystem metadata-server contention (137/261 tasks
@@ -115,7 +118,7 @@ plotting.
 ## How to run
 
 ```bash
-# one dataset, all 8 configs
+# one dataset, all 9 configs
 python -m ablation.run_ablation --data_file AUH_HepG2 --mode all --seed 42
 
 # multiple datasets in one process (what a sharded array task does internally)
@@ -157,3 +160,18 @@ same `--array=...` command after a partial failure is always safe (see Scale-out
 The diagram labels STREME motif *"only used during training, not inference,"* but the current
 code feeds `motif` in all modes. This pipeline treats `motif` as a normal input branch
 (consistent with the code). Worth one line of team confirmation; does not change the design.
+
+## Attention-pooling addition (`ablation-attention-pooling` branch)
+
+First of three planned ADPNet-replacement experiments (see `MODULE_CONFIGS` in
+`ablation/registry.py`): `adpnet_to_attnpool` swaps the `ADPNet` head for `AttnPoolHead`
+(`utils/BRIDGE.py`) — a per-position `Linear(C,1)` score, softmax-normalized over the length
+axis, weighted-summed to `(B, C)`, then the same final `Linear(C, 1)` classifier `GAPHead`
+uses. Parameter count is close to `GAPHead`'s, so comparing `adpnet_to_attnpool` against
+`adpnet_to_gap` isolates whether content-based weighting (vs. uniform averaging) recovers
+performance lost by dropping the ADPNet pyramid, independent of added model capacity. No
+engine changes were needed — `run_ablation.py`/`collate_results.py`/`plot_results.py` already
+iterate whatever `ablation/registry.get_configs()` returns.
+
+- **Edited:** `utils/BRIDGE.py` (new `AttnPoolHead`, new `adpnet_to_attnpool` kwarg, mutually
+  exclusive with `adpnet_to_gap`), `ablation/registry.py` (new `MODULE_CONFIGS` entry).

@@ -331,19 +331,24 @@ class BRIDGE(nn.Module):
         drop_feature: str = None,
         kan_to_mlp: bool = False,
         adpnet_to_gap: bool = False,
+        adpnet_to_attnpool: bool = False,
     ) -> None:
         """
         Args:
             k: convolution kernel size for the structure/biochem branches (as before).
             drop_feature: if set, removes one input-feature branch entirely and shrinks the
-                fused ADPNet/GAP input from 512 by ``FEATURE_CHANNELS[drop_feature]``. One of
+                fused ADPNet/GAP/attention-pool input from 512 by
+                ``FEATURE_CHANNELS[drop_feature]``. One of
                 ``{"gcn","sequence","structure","motif","biochem"}`` or ``None`` (baseline).
             kan_to_mlp: if True, replace every ``multiscaleKAN`` block with the structurally
                 identical ``multiscaleMLP`` (Conv1d in place of the KAN operator).
             adpnet_to_gap: if True, replace the ``ADPNet`` head with ``GAPHead`` (global
                 average pool over length -> ``Linear``).
+            adpnet_to_attnpool: if True, replace the ``ADPNet`` head with ``AttnPoolHead``
+                (learned attention pool over length -> ``Linear``). Mutually exclusive with
+                ``adpnet_to_gap`` (only one head swap at a time).
 
-        With all three at their defaults this reproduces the original baseline model exactly
+        With all four at their defaults this reproduces the original baseline model exactly
         (identical module construction order, so fixed-seed initialization is unchanged).
         """
         super().__init__()
@@ -352,9 +357,15 @@ class BRIDGE(nn.Module):
                 f"Unknown drop_feature {drop_feature!r}; expected one of "
                 f"{list(FEATURE_CHANNELS)} or None"
             )
+        if adpnet_to_gap and adpnet_to_attnpool:
+            raise ValueError(
+                "adpnet_to_gap and adpnet_to_attnpool are mutually exclusive; "
+                "set at most one to swap the ADPNet head."
+            )
         self.drop_feature = drop_feature
         self.kan_to_mlp = kan_to_mlp
         self.adpnet_to_gap = adpnet_to_gap
+        self.adpnet_to_attnpool = adpnet_to_attnpool
 
         number_of_layers = int(log(101-k+1, 2))
         # Multiscale block class: KAN (baseline) or its MLP (Conv1d) analog.
@@ -383,10 +394,12 @@ class BRIDGE(nn.Module):
         if drop_feature != "biochem":
             self.multiscale_biochem = ms(32, 16)
 
-        # ===== Classifier head (ADPNet pyramid, or GAP) over the fused features =====
+        # ===== Classifier head (ADPNet pyramid, GAP, or attention pool) over the fused features =====
         fusion_ch = 512 - FEATURE_CHANNELS.get(drop_feature, 0)
         if adpnet_to_gap:
             self.adpnet = GAPHead(fusion_ch)
+        elif adpnet_to_attnpool:
+            self.adpnet = AttnPoolHead(fusion_ch)
         else:
             self.adpnet = ADPNet(fusion_ch, number_of_layers)
 
@@ -637,3 +650,30 @@ class GAPHead(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x.mean(dim=-1)          # (B, C, L) -> (B, C)
         return self.classifier(x)   # (B, 1)
+
+
+class AttnPoolHead(nn.Module):
+    """
+    Attention-pooling classifier head for the ``adpnet_to_attnpool`` module ablation.
+
+    Replaces the entire ADPNet pyramidal refinement with a single learned-query attention
+    pool: a per-position score (``Linear(C,1)``) is softmax-normalized over the length axis
+    to produce content-based weights, which then combine the length axis into one vector
+    (``(B, C, L) -> (B, C)``) before the same final ``Linear(C, 1)`` classifier used by
+    ``GAPHead``. Parameter count is deliberately close to ``GAPHead`` (one extra
+    ``Linear(C, 1)`` scorer) so a delta vs. GAP isolates content-based weighting from the
+    pyramid's depth, rather than from added model capacity.
+
+    Args:
+        filter_num (int): Number of fused input channels (C).
+    """
+    def __init__(self, filter_num: int) -> None:
+        super(AttnPoolHead, self).__init__()
+        self.score = nn.Linear(filter_num, 1)
+        self.classifier = nn.Linear(filter_num, 1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        h = x.transpose(1, 2)                    # (B, C, L) -> (B, L, C)
+        w = torch.softmax(self.score(h), dim=1)  # (B, L, 1) attention weights over L
+        pooled = (h * w).sum(dim=1)               # (B, C)
+        return self.classifier(pooled)             # (B, 1)
