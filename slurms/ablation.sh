@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --account=cis250169-ai
+#SBATCH --account=cis250169-gpu
 #SBATCH --job-name=BRIDGE_ablation
 #SBATCH --output=./slurms/logs/ablation/%x_%A_%a.out
 #SBATCH --error=./slurms/logs/ablation/%x_%A_%a.err
@@ -8,9 +8,15 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --mem=32G
 #SBATCH --time=2:00:00
-#SBATCH -p ai
+#SBATCH -p gpu
 #SBATCH --mail-type=begin,end,fail
 #SBATCH --mail-user=mgurnani@ucdavis.edu
+#
+# Runs on -p gpu (A100, sm_80), NOT -p ai (H100, sm_90): this repo's pinned torch==2.0.1+cu11
+# build only ships kernels up to sm_86, so it hard-fails on H100 with "no kernel image is
+# available for execution on the device" (confirmed: jobs 19448485/19448645 died this way on
+# every array task, right at RBPformer/BERT embedding build, before any ablation config ran).
+# See slurms/validate_pretrained.sh for the same fix applied earlier.
 #
 # Feature + module ablation for BRIDGE. Each array task trains ALL configs
 # (baseline + 5 feature drops + kan_to_mlp + adpnet_to_gap) for a SHARD of
