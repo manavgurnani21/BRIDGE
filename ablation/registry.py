@@ -12,7 +12,7 @@ Config fields:
     kwargs           : keyword args passed to ``BRIDGE(...)``.
 """
 
-from utils.BRIDGE import FEATURE_CHANNELS
+from utils.BRIDGE import FEATURE_CHANNELS, PROTEIN_CHANNELS
 
 # Full-model baseline (shared by every mode; deltas are computed against it).
 BASELINE = {
@@ -32,6 +32,19 @@ FEATURE_CONFIGS = [
     }
     for feat in ("gcn", "sequence", "structure", "motif", "biochem")
 ]
+
+# Protein-awareness control (not a real ablation candidate): adds a whole-protein ESM-2
+# embedding as an extra, additive input branch (512 -> 512 + PROTEIN_CHANNELS). Because BRIDGE
+# trains one model per single RBP, this vector is identical across every sample in a run, so
+# it can only be absorbed as a learned bias -- this config exists to test that prediction
+# empirically (expected: ~no change vs baseline), not because it's expected to help. See
+# ``utils.BRIDGE.BRIDGE``'s ``add_protein`` docstring for the full reasoning.
+PROTEIN_CONFIG = {
+    "name": "protein",
+    "ablation_type": "feature",
+    "component_removed": "protein",
+    "kwargs": {"add_protein": True},
+}
 
 # Module ablations: swap an internal mechanism, keeping inputs + 512 fusion fixed.
 MODULE_CONFIGS = [
@@ -60,21 +73,25 @@ def get_configs(mode="all"):
     """Return the ordered config list for a mode. ``none`` is always first so the baseline
     is trained before the ablations (useful for early delta sanity checks)."""
     if mode == "feature":
-        return [BASELINE] + FEATURE_CONFIGS
+        return [BASELINE] + FEATURE_CONFIGS + [PROTEIN_CONFIG]
     if mode == "module":
         return [BASELINE] + MODULE_CONFIGS
     if mode == "all":
-        return [BASELINE] + FEATURE_CONFIGS + MODULE_CONFIGS
+        return [BASELINE] + FEATURE_CONFIGS + [PROTEIN_CONFIG] + MODULE_CONFIGS
     raise ValueError(f"Unknown mode {mode!r}; expected one of 'feature', 'module', 'all'")
 
 
-def fusion_channels(config):
-    """ADPNet/GAP input width for a config (512 minus any dropped feature's channels)."""
-    drop = config["kwargs"].get("drop_feature")
-    return 512 - FEATURE_CHANNELS.get(drop, 0)
-
-
 def channels_removed(config):
-    """Channels removed from the 512-wide fusion (0 for module ablations and baseline)."""
+    """Net channels removed from the 512-wide fusion (negative = net channels added).
+
+    0 for module ablations and baseline; ``FEATURE_CHANNELS[drop_feature]`` for a dropped
+    branch; ``-PROTEIN_CHANNELS`` for the additive ``protein`` config.
+    """
     drop = config["kwargs"].get("drop_feature")
-    return FEATURE_CHANNELS.get(drop, 0)
+    added = PROTEIN_CHANNELS if config["kwargs"].get("add_protein") else 0
+    return FEATURE_CHANNELS.get(drop, 0) - added
+
+
+def fusion_channels(config):
+    """ADPNet/GAP/attention-pool input width for a config."""
+    return 512 - channels_removed(config)

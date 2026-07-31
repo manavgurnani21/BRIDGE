@@ -165,6 +165,10 @@ FEATURE_CHANNELS = {
     "biochem": 32,    # biochemical k-mer branch (conv_biochem + multiscale_biochem)
 }
 
+# Channel width contributed by the optional "protein" branch (add_protein=True). Additive:
+# fusion width becomes 512 + PROTEIN_CHANNELS (minus any dropped feature), not a replacement.
+PROTEIN_CHANNELS = 32
+
 
 class ADPNetblock(nn.Module):
     """
@@ -332,6 +336,8 @@ class BRIDGE(nn.Module):
         kan_to_mlp: bool = False,
         adpnet_to_gap: bool = False,
         adpnet_to_attnpool: bool = False,
+        add_protein: bool = False,
+        protein_vector=None,
     ) -> None:
         """
         Args:
@@ -347,9 +353,20 @@ class BRIDGE(nn.Module):
             adpnet_to_attnpool: if True, replace the ``ADPNet`` head with ``AttnPoolHead``
                 (learned attention pool over length -> ``Linear``). Mutually exclusive with
                 ``adpnet_to_gap`` (only one head swap at a time).
+            add_protein: if True, adds an extra input branch that projects a whole-protein
+                ESM-2 embedding (``protein_vector``) to ``PROTEIN_CHANNELS`` and concatenates
+                it into the fusion (additive: 512 -> 512 + PROTEIN_CHANNELS). Since BRIDGE
+                trains one model per single RBP, this vector is the SAME for every sample in
+                a run -- it can only be absorbed as a learned bias, not a per-sample signal.
+                This branch exists to test that prediction empirically, not because it is
+                expected to help (see ``ablation/registry.py``'s ``"protein"`` config).
+            protein_vector: required when ``add_protein=True``; a ``(1280,)``-shaped
+                array/tensor (e.g. from ``utils.protein_features.load_protein_embedding``),
+                stored as a non-trainable buffer.
 
-        With all four at their defaults this reproduces the original baseline model exactly
-        (identical module construction order, so fixed-seed initialization is unchanged).
+        With all four (five) at their defaults this reproduces the original baseline model
+        exactly (identical module construction order, so fixed-seed initialization is
+        unchanged for every config that leaves ``add_protein=False``).
         """
         super().__init__()
         if drop_feature is not None and drop_feature not in FEATURE_CHANNELS:
@@ -362,10 +379,13 @@ class BRIDGE(nn.Module):
                 "adpnet_to_gap and adpnet_to_attnpool are mutually exclusive; "
                 "set at most one to swap the ADPNet head."
             )
+        if add_protein and protein_vector is None:
+            raise ValueError("add_protein=True requires protein_vector (a (1280,) array/tensor).")
         self.drop_feature = drop_feature
         self.kan_to_mlp = kan_to_mlp
         self.adpnet_to_gap = adpnet_to_gap
         self.adpnet_to_attnpool = adpnet_to_attnpool
+        self.add_protein = add_protein
 
         number_of_layers = int(log(101-k+1, 2))
         # Multiscale block class: KAN (baseline) or its MLP (Conv1d) analog.
@@ -394,8 +414,18 @@ class BRIDGE(nn.Module):
         if drop_feature != "biochem":
             self.multiscale_biochem = ms(32, 16)
 
+        # ===== Protein branch (optional additive control; see add_protein docstring above) =====
+        if add_protein:
+            protein_vector = torch.as_tensor(protein_vector, dtype=torch.float32).view(-1)
+            self.register_buffer("protein_vector", protein_vector)
+            self.protein_proj = nn.Sequential(
+                nn.Linear(protein_vector.numel(), 64),
+                nn.ReLU(),
+                nn.Linear(64, PROTEIN_CHANNELS),
+            )
+
         # ===== Classifier head (ADPNet pyramid, GAP, or attention pool) over the fused features =====
-        fusion_ch = 512 - FEATURE_CHANNELS.get(drop_feature, 0)
+        fusion_ch = 512 - FEATURE_CHANNELS.get(drop_feature, 0) + (PROTEIN_CHANNELS if add_protein else 0)
         if adpnet_to_gap:
             self.adpnet = GAPHead(fusion_ch)
         elif adpnet_to_attnpool:
@@ -549,6 +579,14 @@ class BRIDGE(nn.Module):
             x3 = self.conv_biochem(biochem)
             x3 = self.multiscale_biochem(x3)
             feats.append(x3)
+
+        # ===== Protein branch (optional additive control) =====
+        if self.add_protein:
+            batch_size = bert_embedding.shape[0]
+            length = bert_embedding.shape[-1]
+            protein_feat = self.protein_proj(self.protein_vector)          # (PROTEIN_CHANNELS,)
+            protein_feat = protein_feat.view(1, -1, 1).expand(batch_size, -1, length)
+            feats.append(protein_feat)
 
         # ===== Fusion =====
         x = torch.cat(feats, dim=1)

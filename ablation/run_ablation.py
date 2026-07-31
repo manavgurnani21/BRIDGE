@@ -38,6 +38,7 @@ import torch.nn as nn
 
 from utils.BRIDGE import BRIDGE
 from utils.data_pipeline import build_split_loaders, fix_seed
+from utils.protein_features import load_protein_embedding
 from utils.train_loop import fit_bridge, validate
 from ablation.registry import get_configs, fusion_channels, channels_removed
 
@@ -83,7 +84,12 @@ def run_config(config, loaders, device, args, dataset, rows_dir, runs_dir):
 
     # Fresh, identically-seeded init + training for every config (fair comparison).
     fix_seed(args.seed)
-    model = BRIDGE(**config["kwargs"]).to(device)
+    model_kwargs = dict(config["kwargs"])
+    if model_kwargs.get("add_protein"):
+        # Looked up per-dataset at run time (not stored in the static registry kwargs) since
+        # each dataset has its own cached whole-protein embedding.
+        model_kwargs["protein_vector"] = load_protein_embedding(dataset)
+    model = BRIDGE(**model_kwargs).to(device)
     criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(2))
     optimizer = torch.optim.Adam(
         model.parameters(), lr=args.lr, betas=(0.9, 0.999), weight_decay=1e-6
