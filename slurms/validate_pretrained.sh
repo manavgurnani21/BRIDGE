@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --account=cis250169-gpu
+# BRIDGE_JOB_CLASS: gpu
 #SBATCH --job-name=BRIDGE_validate_pretrained
 #SBATCH --output=./slurms/logs/validate_pretrained/%x_%A_%a.out
 #SBATCH --error=./slurms/logs/validate_pretrained/%x_%A_%a.err
@@ -8,9 +8,12 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --mem=50G
 #SBATCH --time=1:00:00
-#SBATCH -p gpu
 #SBATCH --mail-type=begin,end,fail
 #SBATCH --mail-user=mgurnani@ucdavis.edu
+#
+# --account/--partition come from slurms/submit.sh at submit time (see
+# slurms/cluster/*.sh) -- submit with `slurms/submit.sh validate_pretrained.sh ...`,
+# not a bare `sbatch slurms/validate_pretrained.sh ...`.
 #
 # Wrapper around slurms/validate.sh's underlying `main.py --validate` command: batches it
 # over many datasets in one job (array-over-manifest, SHARD_SIZE per task) so we can validate
@@ -18,25 +21,23 @@
 # dataset. slurms/validate.sh itself is left untouched — this script exists purely to point
 # --model_save_path at an arbitrary checkpoint directory (e.g. the paper's release) and loop.
 #
-# Runs on -p gpu (A100, sm_80), NOT -p ai (H100, sm_90): this repo's pinned torch==2.0.1+cu11
-# build only ships kernels up to sm_86, so it hard-fails on H100 with "no kernel image is
-# available for execution on the device" (confirmed directly: job 19427724 on an h-node hit
-# this). slurms/validate.sh and slurms/ablation.sh still default to -p ai and may hit the same
-# wall depending which node they land on — not changed here since that's a separate question
-# from this script's purpose.
+# Must land on a GPU generation this repo's pinned torch==2.0.1+cu117 build supports
+# (sm_80/86 only): it hard-fails on sm_90+ with "no kernel image is available for execution
+# on the device" (confirmed directly: job 19427724 on an h-node hit this, when misrouted to
+# Anvil's H100 partition). bridge_assert_gpu_partition below enforces the safe partition list
+# per cluster (slurms/cluster/*.sh: BRIDGE_GPU_SAFE_PARTITIONS) instead of a hardcoded name here.
 #
 # ---- Usage ----------------------------------------------------------------------
-# Validate all 261 datasets against the paper's released checkpoints:
-#   mkdir -p slurms/logs/validate_pretrained
-#   MODEL_SAVE_PATH=/anvil/scratch/x-mgurnani/BRIDGE_Source_Files/model/model \
-#     sbatch --array=0-17%10 slurms/validate_pretrained.sh
+# Validate all 261 datasets against the paper's released checkpoints (MODEL_SAVE_PATH
+# defaults to BRIDGE_PRETRAINED_MODEL_DIR from slurms/cluster/<cluster>.sh; override
+# per-invocation if needed):
+#   slurms/submit.sh --array=0-17%10 validate_pretrained.sh
 #
 # (261 datasets / SHARD_SIZE=15 -> 18 shards, 0-17; %10 caps concurrency.)
 #
 # Single dataset / explicit list (still routes through the same batching logic):
-#   MODEL_SAVE_PATH=/anvil/scratch/x-mgurnani/BRIDGE_Source_Files/model/model \
-#     sbatch slurms/validate_pretrained.sh AUH_HepG2
-#   sbatch slurms/validate_pretrained.sh AUH_HepG2,AARS_K562
+#   slurms/submit.sh validate_pretrained.sh AUH_HepG2
+#   slurms/submit.sh validate_pretrained.sh AUH_HepG2,AARS_K562
 #
 # Each dataset's result line ("<DATA_FILE> auc: ... acc: ... auprc: ... mcc: ...", printed by
 # main.py) lands in this task's .out log; grep across slurms/logs/validate_pretrained/*.out
@@ -46,10 +47,17 @@
 
 set -uo pipefail  # (not -e: one dataset's failure must not abort the rest of the shard)
 
+# shellcheck source=/dev/null
+source "${BRIDGE_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}/slurms/cluster/common.sh"
+bridge_assert_gpu_partition
+
 MANIFEST=${MANIFEST:-ablation/datasets.txt}
 DATA_PATH=${DATA_PATH:-./dataset}
 TRANSFORMER_PATH=${TRANSFORMER_PATH:-./RBPformer}
-MODEL_SAVE_PATH=${MODEL_SAVE_PATH:-./results/model}
+# No file-level default: an empty BRIDGE_PRETRAINED_MODEL_DIR (e.g. not yet staged on this
+# cluster, see slurms/cluster/hive.sh) fails loudly here instead of silently falling through
+# to ./results/model.
+MODEL_SAVE_PATH=${MODEL_SAVE_PATH:-${BRIDGE_PRETRAINED_MODEL_DIR:?set BRIDGE_PRETRAINED_MODEL_DIR in slurms/cluster/${BRIDGE_CLUSTER}.sh, or pass MODEL_SAVE_PATH=... explicitly}}
 SEED=${SEED:-42}
 SHARD_SIZE=${SHARD_SIZE:-15}
 STAGGER_WINDOW=${STAGGER_WINDOW:-60}
@@ -73,9 +81,7 @@ if [[ -z "${DATASETS}" ]]; then
 fi
 echo "[$(date)] validate_pretrained task ${SLURM_ARRAY_TASK_ID:-single} -> datasets [${DATASETS}] model_save_path=${MODEL_SAVE_PATH}"
 
-# Load conda (matches slurms/validate.sh, ablation.sh).
-module --force purge
-module load intel-mkl
+bridge_load_base_modules
 
 # Stagger conda-activate/python-launch across array tasks scheduled together, to avoid the
 # shared-filesystem metadata-server race documented in slurms/ablation.sh
@@ -100,9 +106,8 @@ STDERR_TMP="${SLURM_TMPDIR:-/tmp}/validate_pretrained_${SLURM_JOB_ID:-manual}_${
 
 ATTEMPT=1
 while true; do
-    echo "[$(date)] attempt ${ATTEMPT}/${MAX_ATTEMPTS}: module load conda; conda activate BRIDGE"
-    module load conda
-    conda activate BRIDGE
+    echo "[$(date)] attempt ${ATTEMPT}/${MAX_ATTEMPTS}: bridge_activate_env (module load ${BRIDGE_MODULE_CONDA}; conda activate ${BRIDGE_CONDA_ENV})"
+    bridge_activate_env
     python -c "import torch; print(f'[env_check] ok torch={torch.__version__}')" 2> "${STDERR_TMP}"
     RC=$?
     if [[ ${RC} -eq 0 ]]; then
