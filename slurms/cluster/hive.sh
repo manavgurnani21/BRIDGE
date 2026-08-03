@@ -15,3 +15,7 @@ BRIDGE_CONDA_ENV=BRIDGE
 # Released checkpoints, used by slurms/validate_pretrained.sh.
 # TODO: set once BRIDGE_Source_Files is staged on Hive.
 BRIDGE_PRETRAINED_MODEL_DIR=
+
+# Cached whole-protein ESM-2 embeddings, used by ablation/run_ablation.py's "protein" config
+# (see utils/protein_features.py). Copied over from Anvil's PreprocessedPaRPIData/esm cache.
+BRIDGE_ESM_CACHE_DIR=/quobyte/savirangrp/manav/esm

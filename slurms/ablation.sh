@@ -102,6 +102,11 @@ source "${BRIDGE_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}/slurms/cluster/common.sh"
 bridge_assert_gpu_partition
 bridge_load_base_modules
 
+# Cached whole-protein ESM-2 embeddings for the "protein" config (mode=feature/all only;
+# see utils/protein_features.py). Cluster-specific -- comes from slurms/cluster/<cluster>.sh,
+# same pattern as BRIDGE_PRETRAINED_MODEL_DIR in slurms/validate_pretrained.sh.
+ESM_CACHE_DIR=${ESM_CACHE_DIR:-${BRIDGE_ESM_CACHE_DIR:?set BRIDGE_ESM_CACHE_DIR in slurms/cluster/${BRIDGE_CLUSTER}.sh, or pass ESM_CACHE_DIR=... explicitly}}
+
 # Stagger conda-activate/python-launch across a window so array tasks scheduled
 # together don't all hit the shared filesystem's metadata server in the same
 # instant (the root cause of the init_fs_encoding race described above).
@@ -133,6 +138,7 @@ while true; do
             --data_files "${DATASETS}" \
             --data_path "${DATA_PATH}" \
             --Transformer_path "${TRANSFORMER_PATH}" \
+            --esm_cache_dir "${ESM_CACHE_DIR}" \
             --mode "${MODE}" \
             --seed "${SEED}" \
             --max_epochs "${MAX_EPOCHS}" \

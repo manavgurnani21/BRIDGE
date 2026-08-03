@@ -38,7 +38,7 @@ import torch.nn as nn
 
 from utils.BRIDGE import BRIDGE
 from utils.data_pipeline import build_split_loaders, fix_seed
-from utils.protein_features import load_protein_embedding
+from utils.protein_features import ESM_CACHE_DIR, load_protein_embedding
 from utils.train_loop import fit_bridge, validate
 from ablation.registry import get_configs, fusion_channels, channels_removed
 
@@ -88,7 +88,7 @@ def run_config(config, loaders, device, args, dataset, rows_dir, runs_dir):
     if model_kwargs.get("add_protein"):
         # Looked up per-dataset at run time (not stored in the static registry kwargs) since
         # each dataset has its own cached whole-protein embedding.
-        model_kwargs["protein_vector"] = load_protein_embedding(dataset)
+        model_kwargs["protein_vector"] = load_protein_embedding(dataset, cache_dir=args.esm_cache_dir)
     model = BRIDGE(**model_kwargs).to(device)
     criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(2))
     optimizer = torch.optim.Adam(
@@ -167,6 +167,10 @@ def main():
                               "e.g. AARS_K562,AATF_HepG2,ABCF1_K562")
     parser.add_argument("--data_path", default="./dataset", type=str)
     parser.add_argument("--Transformer_path", default="./RBPformer", type=str)
+    parser.add_argument("--esm_cache_dir", default=ESM_CACHE_DIR, type=str,
+                         help="Dir of cached {dataset}.npy whole-protein ESM-2 embeddings "
+                              "for the 'protein' config. Defaults to the Anvil path; pass "
+                              "slurms/cluster/<cluster>.sh's BRIDGE_ESM_CACHE_DIR elsewhere.")
     parser.add_argument("--mode", default="all", choices=["feature", "module", "all"])
     parser.add_argument("--seed", default=42, type=int)
     parser.add_argument("--max_epochs", default=200, type=int)
