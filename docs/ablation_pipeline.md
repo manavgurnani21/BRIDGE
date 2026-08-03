@@ -99,8 +99,8 @@ BRIDGE(k=3, drop_feature=None, kan_to_mlp=False, adpnet_to_gap=False, adpnet_to_
   pre-existing gap; use a slice of `datasets.txt` for pilot runs instead).
 - **Idempotent per dataset+config row-file, not per task/shard** — a requeued/preempted task,
   or a full array resubmission under a different shard mapping, always skips whatever's
-  already on disk. Resubmitting the same `sbatch --array=...` command is therefore always
-  safe and is the standard recovery path after any partial failure — no need to track or
+  already on disk. Resubmitting the same `slurms/submit.sh --array=...` command is therefore
+  always safe and is the standard recovery path after any partial failure — no need to track or
   filter down to just the failed datasets.
 
 ### Shared CSV schema
@@ -125,9 +125,11 @@ python -m ablation.run_ablation --data_file AUH_HepG2 --mode all --seed 42
 python -m ablation.run_ablation --data_files AUH_HepG2,AARS_K562 --mode all --seed 42
 
 # SLURM: pilot, then full sweep, then collate
-mkdir -p slurms/logs/ablation
-MAX_EPOCHS=2 EARLY_STOPPING=2 SHARD_SIZE=7 sbatch --array=0-5%6 --time=00:30:00 slurms/ablation.sh
-SHARD_SIZE=7 sbatch --array=0-37%20 --time=14:00:00 slurms/ablation.sh
+# (slurms/submit.sh auto-detects the cluster -- Anvil or Hive -- and supplies the right
+# --account/--partition; see slurms/cluster/*.sh. Don't call `sbatch slurms/ablation.sh`
+# directly, since #SBATCH can't carry cluster-specific values.)
+MAX_EPOCHS=2 EARLY_STOPPING=2 SHARD_SIZE=7 slurms/submit.sh --array=0-5%6 --time=00:30:00 ablation.sh
+SHARD_SIZE=7 slurms/submit.sh --array=0-37%20 --time=14:00:00 ablation.sh
 python -m ablation.collate_results --manifest ablation/datasets.txt
 ```
 

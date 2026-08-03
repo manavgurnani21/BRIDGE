@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --account=cis250169-gpu
+# BRIDGE_JOB_CLASS: gpu
 #SBATCH --job-name=BRIDGE_ablation
 #SBATCH --output=./slurms/logs/ablation/%x_%A_%a.out
 #SBATCH --error=./slurms/logs/ablation/%x_%A_%a.err
@@ -8,15 +8,22 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --mem=32G
 #SBATCH --time=2:00:00
-#SBATCH -p gpu
 #SBATCH --mail-type=begin,end,fail
 #SBATCH --mail-user=mgurnani@ucdavis.edu
 #
-# Runs on -p gpu (A100, sm_80), NOT -p ai (H100, sm_90): this repo's pinned torch==2.0.1+cu11
-# build only ships kernels up to sm_86, so it hard-fails on H100 with "no kernel image is
-# available for execution on the device" (confirmed: jobs 19448485/19448645 died this way on
-# every array task, right at RBPformer/BERT embedding build, before any ablation config ran).
-# See slurms/validate_pretrained.sh for the same fix applied earlier.
+# --account/--partition come from slurms/submit.sh at submit time (see
+# slurms/cluster/*.sh) -- submit with `slurms/submit.sh ablation.sh ...`, not a
+# bare `sbatch slurms/ablation.sh ...`.
+#
+# Must land on a GPU generation this repo's pinned torch==2.0.1+cu117 build
+# supports (sm_80/86 only): it hard-fails on sm_90+ with "no kernel image is
+# available for execution on the device" (confirmed: jobs 19448485/19448645
+# died this way on every array task, right at RBPformer/BERT embedding build,
+# before any ablation config ran, when misrouted to Anvil's H100 partition).
+# bridge_assert_gpu_partition below enforces the safe partition list per
+# cluster (slurms/cluster/*.sh: BRIDGE_GPU_SAFE_PARTITIONS) instead of relying
+# on a hardcoded partition name here. See slurms/validate_pretrained.sh for the
+# same fix applied earlier.
 #
 # Feature + module ablation for BRIDGE. Each array task trains ALL configs
 # (baseline + 5 feature drops + kan_to_mlp + adpnet_to_gap) for a SHARD of
@@ -33,15 +40,14 @@
 #
 # ---- Usage -------------------------------------------------------------------
 # 1) Single dataset (or explicit comma-separated list):
-#      mkdir -p slurms/logs/ablation
-#      sbatch slurms/ablation.sh AUH_HepG2
-#      sbatch slurms/ablation.sh AUH_HepG2,AARS_K562
+#      slurms/submit.sh ablation.sh AUH_HepG2
+#      slurms/submit.sh ablation.sh AUH_HepG2,AARS_K562
 #
 # 2) Array over a manifest (SHARD_SIZE datasets per task; task index -> line range):
 #      # pilot (3 datasets):
-#      MANIFEST=ablation/datasets_pilot.txt sbatch --array=0-2%3 --time=02:00:00 slurms/ablation.sh
+#      MANIFEST=ablation/datasets_pilot.txt slurms/submit.sh --array=0-2%3 --time=02:00:00 ablation.sh
 #      # full sweep (261 datasets, SHARD_SIZE=7 -> 38 shards, <=20 concurrent):
-#      SHARD_SIZE=7 sbatch --array=0-37%20 --time=14:00:00 slurms/ablation.sh
+#      SHARD_SIZE=7 slurms/submit.sh --array=0-37%20 --time=14:00:00 ablation.sh
 #
 # 3) After the array finishes, collate to master CSV/long/parquet + deltas:
 #      python -m ablation.collate_results --manifest ablation/datasets.txt
@@ -91,9 +97,10 @@ if [[ -z "${DATASETS}" ]]; then
 fi
 echo "[$(date)] ablation task ${SLURM_ARRAY_TASK_ID:-single} -> datasets [${DATASETS}] (mode=${MODE})"
 
-# Load conda (matches slurms/train.sh, validate.sh, dynamic_validate.sh).
-module --force purge
-module load intel-mkl
+# shellcheck source=/dev/null
+source "${BRIDGE_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}/slurms/cluster/common.sh"
+bridge_assert_gpu_partition
+bridge_load_base_modules
 
 # Stagger conda-activate/python-launch across a window so array tasks scheduled
 # together don't all hit the shared filesystem's metadata server in the same
@@ -113,13 +120,12 @@ ATTEMPT=1
 STDERR_TMP="${SLURM_TMPDIR:-/tmp}/ablation_${SLURM_JOB_ID:-manual}_${SLURM_ARRAY_TASK_ID:-0}_attempt.err"
 
 while true; do
-    echo "[$(date)] attempt ${ATTEMPT}/${MAX_ATTEMPTS}: module load conda; conda activate BRIDGE"
+    echo "[$(date)] attempt ${ATTEMPT}/${MAX_ATTEMPTS}: bridge_activate_env (module load ${BRIDGE_MODULE_CONDA}; conda activate ${BRIDGE_CONDA_ENV})"
     START_TS=$(date +%s)
 
     set +e
     (
-        module load conda
-        conda activate BRIDGE
+        bridge_activate_env
         echo "[$(date)] host=$(hostname) SLURM_JOB_GPUS=${SLURM_JOB_GPUS:-unset} CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-unset}"
         nvidia-smi -L
         python -c "import torch; print(f'[gpu_diag] device_count={torch.cuda.device_count()} current_device={torch.cuda.current_device()} name={torch.cuda.get_device_name(0)}')"

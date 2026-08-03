@@ -47,13 +47,15 @@ Job script: `slurms/ablation.sh` (same conventions as `slurms/train.sh`). Works 
 single-dataset job or as an array over `datasets.txt`.
 
 ```bash
-mkdir -p slurms/logs/ablation
+# slurms/submit.sh auto-detects the cluster (Anvil or Hive) and supplies the right
+# --account/--partition; see slurms/cluster/*.sh. Don't call `sbatch slurms/ablation.sh`
+# directly -- #SBATCH lines can't carry cluster-specific values.
 # single dataset:
-sbatch slurms/ablation.sh AUH_HepG2
+slurms/submit.sh ablation.sh AUH_HepG2
 # pilot first (validate walltime/mem + collate):
-MANIFEST=ablation/datasets_pilot.txt sbatch --array=0-2%3 --time=02:00:00 slurms/ablation.sh
+MANIFEST=ablation/datasets_pilot.txt slurms/submit.sh --array=0-2%3 --time=02:00:00 ablation.sh
 # then the full sweep (<=40 concurrent):
-sbatch --array=0-260%40 slurms/ablation.sh
+slurms/submit.sh --array=0-260%40 ablation.sh
 ```
 
 Override knobs via env vars: `MODE` (feature|module|all), `SEED`, `MAX_EPOCHS`,
