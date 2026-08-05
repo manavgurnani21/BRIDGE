@@ -169,6 +169,15 @@ FEATURE_CHANNELS = {
 # fusion width becomes 512 + PROTEIN_CHANNELS (minus any dropped feature), not a replacement.
 PROTEIN_CHANNELS = 32
 
+# Channel width contributed by the optional protein cross-attention branch (attn_protein=True).
+# Set equal to PROTEIN_CHANNELS on purpose, so this config's channel budget matches add_protein's
+# and any AUC delta between the two isolates "real cross-attention" vs "additive bias" rather
+# than reflecting a difference in fusion width.
+PROTEIN_ATTN_CHANNELS = 32
+# Internal attention dimensionality and head count for the protein cross-attention branch.
+PROTEIN_ATTN_DMODEL = 128
+PROTEIN_ATTN_HEADS = 8
+
 
 class ADPNetblock(nn.Module):
     """
@@ -338,6 +347,9 @@ class BRIDGE(nn.Module):
         adpnet_to_attnpool: bool = False,
         add_protein: bool = False,
         protein_vector=None,
+        attn_protein: bool = False,
+        protein_residue_vector=None,
+        attn_protein_scope: str = "full",
     ) -> None:
         """
         Args:
@@ -363,10 +375,33 @@ class BRIDGE(nn.Module):
             protein_vector: required when ``add_protein=True``; a ``(1280,)``-shaped
                 array/tensor (e.g. from ``utils.protein_features.load_protein_embedding``),
                 stored as a non-trainable buffer.
+            attn_protein: if True, adds a real multi-head cross-attention branch: RNA
+                per-position fused features act as queries, per-residue protein ESM-2
+                embeddings (``protein_residue_vector``) act as keys/values. Unlike
+                ``add_protein``, attention weights vary by RNA position and by the actual
+                content of both sides -- not absorbable as a learned bias. Mutually exclusive
+                with ``add_protein`` (see ``ablation/registry.py``'s ``"attn_protein"``
+                config).
+            protein_residue_vector: required when ``attn_protein=True``; a
+                ``(P, 1280)``-shaped array/tensor (P = protein length, e.g. from
+                ``utils.protein_features.load_protein_residue_embedding``), stored as a
+                non-trainable buffer. Constant across the batch (same RBP every sample) but
+                varies across residues, so it can act as a genuine multi-token key/value set.
+            attn_protein_scope: which RNA representation feeds the cross-attention query when
+                ``attn_protein=True``. ``"full"`` (default): the fused per-position features
+                from all (non-dropped) RNA branches -- structure/motif/biochem context can
+                shape what attends over the protein. ``"sequence"``: only the sequence/BERT
+                branch (``x0``, pre-fusion with the other branches) -- restricts the query to
+                the RNA-BERT "language" embedding, so attention is literally one pretrained
+                sequence-embedding space (RNA-BERT) attending over another (ESM-2), with no
+                engineered-feature context mixed in. Isolates whether an AUC delta comes from
+                real sequence-level RNA-protein complementarity vs. extra fusion capacity from
+                the other branches. Ignored when ``attn_protein=False``. Requires
+                ``drop_feature != "sequence"`` (there is no ``x0`` to attend from otherwise).
 
         With all four (five) at their defaults this reproduces the original baseline model
         exactly (identical module construction order, so fixed-seed initialization is
-        unchanged for every config that leaves ``add_protein=False``).
+        unchanged for every config that leaves ``add_protein=False`` and ``attn_protein=False``).
         """
         super().__init__()
         if drop_feature is not None and drop_feature not in FEATURE_CHANNELS:
@@ -381,11 +416,31 @@ class BRIDGE(nn.Module):
             )
         if add_protein and protein_vector is None:
             raise ValueError("add_protein=True requires protein_vector (a (1280,) array/tensor).")
+        if attn_protein and protein_residue_vector is None:
+            raise ValueError(
+                "attn_protein=True requires protein_residue_vector (a (P, 1280) array/tensor)."
+            )
+        if add_protein and attn_protein:
+            raise ValueError(
+                "add_protein and attn_protein are mutually exclusive; pick one protein-fusion "
+                "mechanism."
+            )
+        if attn_protein_scope not in ("full", "sequence"):
+            raise ValueError(
+                f"attn_protein_scope must be 'full' or 'sequence', got {attn_protein_scope!r}."
+            )
+        if attn_protein and attn_protein_scope == "sequence" and drop_feature == "sequence":
+            raise ValueError(
+                "attn_protein_scope='sequence' requires the sequence branch (drop_feature "
+                "must not be 'sequence')."
+            )
         self.drop_feature = drop_feature
         self.kan_to_mlp = kan_to_mlp
         self.adpnet_to_gap = adpnet_to_gap
         self.adpnet_to_attnpool = adpnet_to_attnpool
         self.add_protein = add_protein
+        self.attn_protein = attn_protein
+        self.attn_protein_scope = attn_protein_scope
 
         number_of_layers = int(log(101-k+1, 2))
         # Multiscale block class: KAN (baseline) or its MLP (Conv1d) analog.
@@ -424,8 +479,30 @@ class BRIDGE(nn.Module):
                 nn.Linear(64, PROTEIN_CHANNELS),
             )
 
+        # ===== Protein cross-attention branch (see attn_protein docstring above) =====
+        if attn_protein:
+            protein_residue_vector = torch.as_tensor(protein_residue_vector, dtype=torch.float32)
+            self.register_buffer("protein_residue_vector", protein_residue_vector)
+            if attn_protein_scope == "sequence":
+                q_in_ch = FEATURE_CHANNELS["sequence"]
+            else:
+                q_in_ch = 512 - FEATURE_CHANNELS.get(drop_feature, 0)
+            self.protein_query_proj = Conv1d(q_in_ch, PROTEIN_ATTN_DMODEL, kernel_size=(1,), stride=1)
+            self.protein_kv_proj = nn.Linear(protein_residue_vector.shape[-1], PROTEIN_ATTN_DMODEL)
+            self.protein_cross_attn = nn.MultiheadAttention(
+                PROTEIN_ATTN_DMODEL, PROTEIN_ATTN_HEADS, dropout=0.1, batch_first=True
+            )
+            self.protein_attn_out_proj = Conv1d(
+                PROTEIN_ATTN_DMODEL, PROTEIN_ATTN_CHANNELS, kernel_size=(1,), stride=1
+            )
+
         # ===== Classifier head (ADPNet pyramid, GAP, or attention pool) over the fused features =====
-        fusion_ch = 512 - FEATURE_CHANNELS.get(drop_feature, 0) + (PROTEIN_CHANNELS if add_protein else 0)
+        fusion_ch = (
+            512
+            - FEATURE_CHANNELS.get(drop_feature, 0)
+            + (PROTEIN_CHANNELS if add_protein else 0)
+            + (PROTEIN_ATTN_CHANNELS if attn_protein else 0)
+        )
         if adpnet_to_gap:
             self.adpnet = GAPHead(fusion_ch)
         elif adpnet_to_attnpool:
@@ -579,6 +656,24 @@ class BRIDGE(nn.Module):
             x3 = self.conv_biochem(biochem)
             x3 = self.multiscale_biochem(x3)
             feats.append(x3)
+
+        # ===== Protein cross-attention branch (real, non-degenerate fusion) =====
+        if self.attn_protein:
+            batch_size = bert_embedding.shape[0]
+            # scope="sequence": query is the RNA-BERT branch alone (x0), pre-fusion with the
+            # other branches -- two pretrained sequence-LM spaces (RNA-BERT, ESM-2) attending
+            # directly on each other. scope="full" (default): query is every RNA branch
+            # computed so far. See attn_protein_scope docstring above.
+            q_in = x0 if self.attn_protein_scope == "sequence" else torch.cat(feats, dim=1)  # (B, C, L)
+            q = self.protein_query_proj(q_in).permute(0, 2, 1)              # (B, L, d_model)
+            kv = self.protein_kv_proj(self.protein_residue_vector)          # (P, d_model)
+            kv = kv.unsqueeze(0).expand(batch_size, -1, -1).contiguous()    # (B, P, d_model)
+            attn_out, attn_weights = self.protein_cross_attn(
+                q, kv, kv, need_weights=True, average_attn_weights=True
+            )                                                               # attn_out: (B, L, d_model)
+            self._last_protein_attn_weights = attn_weights.detach()         # (B, L, P), for diagnostics
+            attn_out = self.protein_attn_out_proj(attn_out.permute(0, 2, 1))  # (B, PROTEIN_ATTN_CHANNELS, L)
+            feats.append(attn_out)
 
         # ===== Protein branch (optional additive control) =====
         if self.add_protein:

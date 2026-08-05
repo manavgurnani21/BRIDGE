@@ -17,3 +17,8 @@ BRIDGE_PRETRAINED_MODEL_DIR=/anvil/scratch/x-mgurnani/BRIDGE_Source_Files/model/
 # Cached whole-protein ESM-2 embeddings, used by ablation/run_ablation.py's "protein" config
 # (see utils/protein_features.py). PaRPI_BIP's original cache location.
 BRIDGE_ESM_CACHE_DIR=/anvil/projects/x-cis250169/PreprocessedPaRPIData/esm
+
+# Cached per-residue ESM-2 embeddings, used by ablation/run_ablation.py's "attn_protein" config
+# (see utils/protein_features.py, ablation/build_esm_residue_cache.py). Built by this repo, not
+# inherited from PaRPI_BIP.
+BRIDGE_ESM_RESIDUE_CACHE_DIR=/anvil/projects/x-cis250169/BRIDGE_esm_residue_cache

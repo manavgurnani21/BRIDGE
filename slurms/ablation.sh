@@ -107,6 +107,11 @@ bridge_load_base_modules
 # same pattern as BRIDGE_PRETRAINED_MODEL_DIR in slurms/validate_pretrained.sh.
 ESM_CACHE_DIR=${ESM_CACHE_DIR:-${BRIDGE_ESM_CACHE_DIR:?set BRIDGE_ESM_CACHE_DIR in slurms/cluster/${BRIDGE_CLUSTER}.sh, or pass ESM_CACHE_DIR=... explicitly}}
 
+# Cached per-residue ESM-2 embeddings for the "attn_protein" config (mode=feature/all only;
+# see utils/protein_features.py, ablation/build_esm_residue_cache.py). Same resolution pattern
+# as ESM_CACHE_DIR above.
+ESM_RESIDUE_CACHE_DIR=${ESM_RESIDUE_CACHE_DIR:-${BRIDGE_ESM_RESIDUE_CACHE_DIR:?set BRIDGE_ESM_RESIDUE_CACHE_DIR in slurms/cluster/${BRIDGE_CLUSTER}.sh, or pass ESM_RESIDUE_CACHE_DIR=... explicitly}}
+
 # Stagger conda-activate/python-launch across a window so array tasks scheduled
 # together don't all hit the shared filesystem's metadata server in the same
 # instant (the root cause of the init_fs_encoding race described above).
@@ -139,6 +144,7 @@ while true; do
             --data_path "${DATA_PATH}" \
             --Transformer_path "${TRANSFORMER_PATH}" \
             --esm_cache_dir "${ESM_CACHE_DIR}" \
+            --esm_residue_cache_dir "${ESM_RESIDUE_CACHE_DIR}" \
             --mode "${MODE}" \
             --seed "${SEED}" \
             --max_epochs "${MAX_EPOCHS}" \

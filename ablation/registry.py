@@ -12,7 +12,7 @@ Config fields:
     kwargs           : keyword args passed to ``BRIDGE(...)``.
 """
 
-from utils.BRIDGE import FEATURE_CHANNELS, PROTEIN_CHANNELS
+from utils.BRIDGE import FEATURE_CHANNELS, PROTEIN_ATTN_CHANNELS, PROTEIN_CHANNELS
 
 # Full-model baseline (shared by every mode; deltas are computed against it).
 BASELINE = {
@@ -46,6 +46,40 @@ PROTEIN_CONFIG = {
     "kwargs": {"add_protein": True},
 }
 
+# Real cross-attention alternative to PROTEIN_CONFIG: RNA per-position fused features attend
+# over per-residue protein ESM-2 embeddings (512 -> 512 + PROTEIN_ATTN_CHANNELS). Unlike
+# add_protein, attention weights vary by RNA position and by protein content -- not absorbable
+# as a learned bias. PROTEIN_ATTN_CHANNELS == PROTEIN_CHANNELS by design, so any AUC delta
+# against PROTEIN_CONFIG isolates "real attention" as the only varying factor. See
+# ``utils.BRIDGE.BRIDGE``'s ``attn_protein`` docstring for the full reasoning.
+ATTN_PROTEIN_CONFIG = {
+    "name": "attn_protein",
+    "ablation_type": "feature",
+    "component_removed": "protein_attn",
+    "kwargs": {"attn_protein": True},
+}
+
+# Scoped variant of ATTN_PROTEIN_CONFIG: the cross-attention query comes from the RNA-BERT
+# branch alone (x0, pre-fusion with structure/motif/biochem), instead of all RNA branches --
+# i.e. one pretrained sequence-LM embedding (RNA-BERT) attending directly over another
+# (ESM-2), with no engineered-feature context mixed in. Same PROTEIN_ATTN_CHANNELS budget as
+# ATTN_PROTEIN_CONFIG, so a three-way AUC comparison (add_protein / attn_protein /
+# attn_protein_seq) isolates: additive bias vs. real attention vs. real attention restricted
+# to sequence-level complementarity. See ``utils.BRIDGE.BRIDGE``'s ``attn_protein_scope``
+# docstring for the full reasoning.
+ATTN_PROTEIN_SEQ_CONFIG = {
+    "name": "attn_protein_seq",
+    "ablation_type": "feature",
+    "component_removed": "protein_attn_seq",
+    "kwargs": {"attn_protein": True, "attn_protein_scope": "sequence"},
+}
+# NOTE: intentionally NOT included in get_configs() below yet -- pending its own Slurm smoke
+# test (guards + non-degeneracy + a few real training epochs), same bar ATTN_PROTEIN_CONFIG
+# was held to before it was wired in. Add it to the "feature"/"all" lists once that passes;
+# the ablation driver's per-(dataset,config) idempotency means the sweep can just be
+# resubmitted afterward to backfill this config's rows without re-running anything already
+# done.
+
 # Module ablations: swap an internal mechanism, keeping inputs + 512 fusion fixed.
 MODULE_CONFIGS = [
     {
@@ -73,11 +107,11 @@ def get_configs(mode="all"):
     """Return the ordered config list for a mode. ``none`` is always first so the baseline
     is trained before the ablations (useful for early delta sanity checks)."""
     if mode == "feature":
-        return [BASELINE] + FEATURE_CONFIGS + [PROTEIN_CONFIG]
+        return [BASELINE] + FEATURE_CONFIGS + [PROTEIN_CONFIG, ATTN_PROTEIN_CONFIG]
     if mode == "module":
         return [BASELINE] + MODULE_CONFIGS
     if mode == "all":
-        return [BASELINE] + FEATURE_CONFIGS + [PROTEIN_CONFIG] + MODULE_CONFIGS
+        return [BASELINE] + FEATURE_CONFIGS + [PROTEIN_CONFIG, ATTN_PROTEIN_CONFIG] + MODULE_CONFIGS
     raise ValueError(f"Unknown mode {mode!r}; expected one of 'feature', 'module', 'all'")
 
 
@@ -85,10 +119,15 @@ def channels_removed(config):
     """Net channels removed from the 512-wide fusion (negative = net channels added).
 
     0 for module ablations and baseline; ``FEATURE_CHANNELS[drop_feature]`` for a dropped
-    branch; ``-PROTEIN_CHANNELS`` for the additive ``protein`` config.
+    branch; ``-PROTEIN_CHANNELS``/``-PROTEIN_ATTN_CHANNELS`` for the additive ``protein``/
+    ``attn_protein`` configs.
     """
     drop = config["kwargs"].get("drop_feature")
-    added = PROTEIN_CHANNELS if config["kwargs"].get("add_protein") else 0
+    added = 0
+    if config["kwargs"].get("add_protein"):
+        added += PROTEIN_CHANNELS
+    if config["kwargs"].get("attn_protein"):
+        added += PROTEIN_ATTN_CHANNELS
     return FEATURE_CHANNELS.get(drop, 0) - added
 
 

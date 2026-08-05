@@ -19,3 +19,8 @@ BRIDGE_PRETRAINED_MODEL_DIR=
 # Cached whole-protein ESM-2 embeddings, used by ablation/run_ablation.py's "protein" config
 # (see utils/protein_features.py). Copied over from Anvil's PreprocessedPaRPIData/esm cache.
 BRIDGE_ESM_CACHE_DIR=/quobyte/savirangrp/manav/esm
+
+# Cached per-residue ESM-2 embeddings, used by ablation/run_ablation.py's "attn_protein" config
+# (see utils/protein_features.py, ablation/build_esm_residue_cache.py). Built by this repo, not
+# inherited from PaRPI_BIP.
+BRIDGE_ESM_RESIDUE_CACHE_DIR=/quobyte/savirangrp/manav/esm_residue
