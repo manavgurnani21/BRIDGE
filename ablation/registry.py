@@ -73,12 +73,8 @@ ATTN_PROTEIN_SEQ_CONFIG = {
     "component_removed": "protein_attn_seq",
     "kwargs": {"attn_protein": True, "attn_protein_scope": "sequence"},
 }
-# NOTE: intentionally NOT included in get_configs() below yet -- pending its own Slurm smoke
-# test (guards + non-degeneracy + a few real training epochs), same bar ATTN_PROTEIN_CONFIG
-# was held to before it was wired in. Add it to the "feature"/"all" lists once that passes;
-# the ablation driver's per-(dataset,config) idempotency means the sweep can just be
-# resubmitted afterward to backfill this config's rows without re-running anything already
-# done.
+# Smoke test passed (job 20032145: guards + non-degeneracy + a few real training epochs, same
+# bar ATTN_PROTEIN_CONFIG was held to) -- wired into get_configs() below.
 
 # Module ablations: swap an internal mechanism, keeping inputs + 512 fusion fixed.
 MODULE_CONFIGS = [
@@ -107,11 +103,11 @@ def get_configs(mode="all"):
     """Return the ordered config list for a mode. ``none`` is always first so the baseline
     is trained before the ablations (useful for early delta sanity checks)."""
     if mode == "feature":
-        return [BASELINE] + FEATURE_CONFIGS + [PROTEIN_CONFIG, ATTN_PROTEIN_CONFIG]
+        return [BASELINE] + FEATURE_CONFIGS + [PROTEIN_CONFIG, ATTN_PROTEIN_CONFIG, ATTN_PROTEIN_SEQ_CONFIG]
     if mode == "module":
         return [BASELINE] + MODULE_CONFIGS
     if mode == "all":
-        return [BASELINE] + FEATURE_CONFIGS + [PROTEIN_CONFIG, ATTN_PROTEIN_CONFIG] + MODULE_CONFIGS
+        return [BASELINE] + FEATURE_CONFIGS + [PROTEIN_CONFIG, ATTN_PROTEIN_CONFIG, ATTN_PROTEIN_SEQ_CONFIG] + MODULE_CONFIGS
     raise ValueError(f"Unknown mode {mode!r}; expected one of 'feature', 'module', 'all'")
 
 
