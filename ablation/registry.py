@@ -104,8 +104,9 @@ ATTN_PROTEIN_PERM_CONFIG = {
     # Read by ablation/run_ablation.py, NOT passed to BRIDGE (it is not a model kwarg).
     "permute_protein": True,
 }
-# NOTE: intentionally NOT included in get_configs() below, pending its own Slurm smoke test
-# (same gate ATTN_PROTEIN_CONFIG and ATTN_PROTEIN_SEQ_CONFIG each passed before being wired in).
+# Smoke test passed (job 20269988: derangement soundness, identical trainable param count vs
+# ATTN_PROTEIN_CONFIG at 21,778,145, non-degenerate attention over the substituted residues,
+# and a few real training epochs) -- wired into get_configs() below.
 
 # Module ablations: swap an internal mechanism, keeping inputs + 512 fusion fixed.
 MODULE_CONFIGS = [
@@ -133,12 +134,18 @@ MODULE_CONFIGS = [
 def get_configs(mode="all"):
     """Return the ordered config list for a mode. ``none`` is always first so the baseline
     is trained before the ablations (useful for early delta sanity checks)."""
+    protein_configs = [
+        PROTEIN_CONFIG,
+        ATTN_PROTEIN_CONFIG,
+        ATTN_PROTEIN_SEQ_CONFIG,
+        ATTN_PROTEIN_PERM_CONFIG,
+    ]
     if mode == "feature":
-        return [BASELINE] + FEATURE_CONFIGS + [PROTEIN_CONFIG, ATTN_PROTEIN_CONFIG, ATTN_PROTEIN_SEQ_CONFIG]
+        return [BASELINE] + FEATURE_CONFIGS + protein_configs
     if mode == "module":
         return [BASELINE] + MODULE_CONFIGS
     if mode == "all":
-        return [BASELINE] + FEATURE_CONFIGS + [PROTEIN_CONFIG, ATTN_PROTEIN_CONFIG, ATTN_PROTEIN_SEQ_CONFIG] + MODULE_CONFIGS
+        return [BASELINE] + FEATURE_CONFIGS + protein_configs + MODULE_CONFIGS
     raise ValueError(f"Unknown mode {mode!r}; expected one of 'feature', 'module', 'all'")
 
 
