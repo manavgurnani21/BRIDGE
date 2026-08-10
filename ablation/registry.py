@@ -76,6 +76,37 @@ ATTN_PROTEIN_SEQ_CONFIG = {
 # Smoke test passed (job 20032145: guards + non-degeneracy + a few real training epochs, same
 # bar ATTN_PROTEIN_CONFIG was held to) -- wired into get_configs() below.
 
+# Negative control for the whole protein-fusion family. Architecturally IDENTICAL to
+# ATTN_PROTEIN_CONFIG (same attn_protein=True kwargs -> same modules, same parameter count,
+# same PROTEIN_ATTN_CHANNELS fusion width); the only difference is that ``run_ablation`` loads
+# a *different* RBP's per-residue embedding as the attention keys/values, via a fixed
+# derangement (see utils.protein_features.load_permuted_protein_residue_embedding).
+#
+# What it tests: the three protein-fusion arms (protein / attn_protein / attn_protein_seq) all
+# landed inside noise (mean dAUC -0.0007 / +0.0005 / +0.0008 over 258 datasets). Two
+# explanations are consistent with that: (a) the protein content genuinely carries no usable
+# signal here -- expected, since BRIDGE trains one model per RBP, so the protein input is
+# constant within a run and absorbable as a learned bias; or (b) it does carry signal but the
+# effect is small. This config separates them. Because the protein is swapped for an unrelated
+# one, any real RNA<->protein correspondence is destroyed while capacity and input statistics
+# are held fixed:
+#   - dAUC(attn_protein_perm) ~= dAUC(attn_protein)  => protein identity contributes nothing;
+#     the small positive delta was added capacity / inductive bias, not biology.
+#   - dAUC(attn_protein_perm) <  dAUC(attn_protein)  => the correspondence IS being used.
+#
+# Deliberately NOT mutually exclusive with the other protein configs in the same way they are
+# with each other -- it is a variant of attn_protein, not a fourth fusion mechanism.
+ATTN_PROTEIN_PERM_CONFIG = {
+    "name": "attn_protein_perm",
+    "ablation_type": "feature",
+    "component_removed": "protein_attn_perm",
+    "kwargs": {"attn_protein": True},
+    # Read by ablation/run_ablation.py, NOT passed to BRIDGE (it is not a model kwarg).
+    "permute_protein": True,
+}
+# NOTE: intentionally NOT included in get_configs() below, pending its own Slurm smoke test
+# (same gate ATTN_PROTEIN_CONFIG and ATTN_PROTEIN_SEQ_CONFIG each passed before being wired in).
+
 # Module ablations: swap an internal mechanism, keeping inputs + 512 fusion fixed.
 MODULE_CONFIGS = [
     {

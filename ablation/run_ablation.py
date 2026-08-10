@@ -41,6 +41,7 @@ from utils.data_pipeline import build_split_loaders, fix_seed
 from utils.protein_features import (
     ESM_CACHE_DIR,
     ESM_RESIDUE_CACHE_DIR,
+    load_permuted_protein_residue_embedding,
     load_protein_embedding,
     load_protein_residue_embedding,
 )
@@ -95,8 +96,16 @@ def run_config(config, loaders, device, args, dataset, rows_dir, runs_dir):
         # each dataset has its own cached whole-protein embedding.
         model_kwargs["protein_vector"] = load_protein_embedding(dataset, cache_dir=args.esm_cache_dir)
     if model_kwargs.get("attn_protein"):
-        # Same rationale as add_protein above, but the per-residue cache instead.
-        model_kwargs["protein_residue_vector"] = load_protein_residue_embedding(
+        # Same rationale as add_protein above, but the per-residue cache instead. The
+        # permute_protein flag (attn_protein_perm negative control) swaps in an unrelated
+        # RBP's embedding; it lives on the config, not in kwargs, since BRIDGE takes only the
+        # resulting tensor and must stay architecturally identical to plain attn_protein.
+        residue_loader = (
+            load_permuted_protein_residue_embedding
+            if config.get("permute_protein")
+            else load_protein_residue_embedding
+        )
+        model_kwargs["protein_residue_vector"] = residue_loader(
             dataset, cache_dir=args.esm_residue_cache_dir
         )
     model = BRIDGE(**model_kwargs).to(device)
