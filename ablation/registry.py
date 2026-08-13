@@ -89,10 +89,17 @@ ATTN_PROTEIN_SEQ_CONFIG = {
 # constant within a run and absorbable as a learned bias; or (b) it does carry signal but the
 # effect is small. This config separates them. Because the protein is swapped for an unrelated
 # one, any real RNA<->protein correspondence is destroyed while capacity and input statistics
-# are held fixed:
-#   - dAUC(attn_protein_perm) ~= dAUC(attn_protein)  => protein identity contributes nothing;
-#     the small positive delta was added capacity / inductive bias, not biology.
-#   - dAUC(attn_protein_perm) <  dAUC(attn_protein)  => the correspondence IS being used.
+# are held fixed.
+#
+# RESULT (full sweep, job 20270053, 258/258 datasets, collated 2026-08-10): destroying the
+# correspondence costs a paired mean of only 0.0009 AUC (dAUC(attn_protein) - dAUC(perm), 95%
+# CI [-0.0004, +0.0023], t p=0.17, Wilcoxon p=0.067); real protein beats the shuffled-protein
+# control on just 55.4% of datasets, not distinguishable from chance. Direction is consistent
+# with a small real effect -- so (a) is NOT confirmed as a bare "protein contributes exactly
+# nothing" -- but the experiment is underpowered to resolve an effect this small (MDE @80% power
+# at n=258 is 0.0019 AUC; would need ~1087 datasets to resolve 0.0009). What IS established: a
+# TOST equivalence bound of +-0.005 AUC at p<0.00001. Conclusion to cite: protein identity
+# contributes <0.005 AUC in this per-RBP training setup -- a bounded null, not a bare one.
 #
 # Deliberately NOT mutually exclusive with the other protein configs in the same way they are
 # with each other -- it is a variant of attn_protein, not a fourth fusion mechanism.
@@ -106,7 +113,8 @@ ATTN_PROTEIN_PERM_CONFIG = {
 }
 # Smoke test passed (job 20269988: derangement soundness, identical trainable param count vs
 # ATTN_PROTEIN_CONFIG at 21,778,145, non-degenerate attention over the substituted residues,
-# and a few real training epochs) -- wired into get_configs() below.
+# and a few real training epochs) -- wired into get_configs() below. Full sweep also completed
+# (job 20270053, 258/258 datasets) -- see the RESULT note above ATTN_PROTEIN_PERM_CONFIG.
 
 # Module ablations: swap an internal mechanism, keeping inputs + 512 fusion fixed.
 MODULE_CONFIGS = [
