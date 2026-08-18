@@ -1,0 +1,173 @@
+local_filename,query_gene,uniprot_accession,local_header,local_length,uniprot_length,length_ratio,kmer_coverage,exact_substring,flag
+AARS,AARS,P49588,"sp|P49588.2|SYAC_HUMAN RecName: Full=Alanine--tRNA ligase, cytoplasmic; AltName: Full=Alanyl-tRNA synthetase; Short=AlaRS; AltName: Full=Renal carcinoma antigen NY-REN-42",968,968,1.0,1.0,True,MATCH
+AATF,AATF,Q9NY61,NP_001398023.1 protein AATF isoform 2 [Homo sapiens],536,560,0.9571,0.9848,False,INCOMPLETE
+ABCF1,ABCF1,Q8NE71,UQL51111.1 ABCF1 [Homo sapiens],845,845,1.0,1.0,True,MATCH
+AGGF1,AGGF1,Q8N302,"AAH15478.1 AGGF1 protein, partial [Homo sapiens]",414,714,0.5798,0.9852,False,INCOMPLETE
+AGO,AGO,,NP_001336727.1 F-box/WD repeat-containing protein 7 isoform 1 [Homo sapiens],707,,,,,NO_UNIPROT_ACCESSION
+AKAP1,AKAP1,Q92667,"NP_001357354.1 A-kinase anchor protein 1, mitochondrial precursor [Homo sapiens]",903,903,1.0,1.0,True,MATCH
+AKAP8L,AKAP8L,Q9ULX6,NP_055186.3 A-kinase anchor protein 8-like isoform 1 [Homo sapiens],646,646,1.0,1.0,True,MATCH
+ALKBH5,ALKBH5,Q6P6C2,NP_060228.3 RNA demethylase ALKBH5 [Homo sapiens],394,394,1.0,1.0,True,MATCH
+APOBEC3C,APOBEC3C,Q9NRW3,"EAW60284.1 apolipoprotein B mRNA editing enzyme, catalytic polypeptide-like 3C, isoform CRA_b [Homo sapiens]",190,190,1.0,1.0,True,MATCH
+AQR,AQR,O60306,ABQ66265.1 AQR [Homo sapiens],1485,1485,1.0,0.9864,False,INCOMPLETE
+ATXN2,ATXN2,Q99700,AAI14547.1 ATXN2 protein [Homo sapiens],1006,1313,0.7662,0.9809,False,INCOMPLETE
+AUH,AUH,Q13825,"NP_079034.3 guanidino acid hydrolase, mitochondrial precursor [Homo sapiens]",352,339,1.0383,0.0,False,WRONG_OR_SEVERE_FRAGMENT
+BCCIP,BCCIP,Q9P287,NP_510869.1 BRCA2 and CDKN1A-interacting protein isoform C [Homo sapiens],292,314,0.9299,0.8799,False,INCOMPLETE
+BCLAF1,BCLAF1,Q9NYF8,AAI44282.1 BCLAF1 protein [Homo sapiens],918,920,0.9978,0.9901,False,MATCH
+BUD13,BUD13,Q9BRD0,NP_001153208.1 BUD13 homolog isoform 2 [Homo sapiens],485,619,0.7835,0.9831,False,INCOMPLETE
+C17ORF85,C17ORF85,Q53F19,"AAH10707.1 C17orf85 protein, partial [Homo sapiens]",334,620,0.5387,1.0,True,INCOMPLETE
+C22ORF28,C22ORF28,Q9Y3I0,NP_055121.1 RNA-splicing ligase RtcB homolog [Homo sapiens],505,505,1.0,1.0,True,MATCH
+CAPRIN1,CAPRIN1,Q14444,NP_005889.3 caprin-1 isoform 1 [Homo sapiens],709,709,1.0,1.0,True,MATCH
+CDC40,CDC40,O60508,NP_056975.1 pre-mRNA-processing factor 17 [Homo sapiens],579,579,1.0,1.0,True,MATCH
+CPEB4,CPEB4,Q17RY0,AAI43960.1 CPEB4 protein [Homo sapiens],704,729,0.9657,0.9885,False,INCOMPLETE
+CPSF1,CPSF1,Q10570,NP_037423.2 cleavage and polyadenylation specificity factor subunit 1 [Homo sapiens],1443,1443,1.0,1.0,True,MATCH
+CPSF2,CPSF2,Q9P2I0,NP_001309201.1 cleavage and polyadenylation specificity factor subunit 2 isoform 1 [Homo sapiens],782,782,1.0,1.0,True,MATCH
+CPSF3,CPSF3,Q9UKF6,"AAH30988.1 CPSF3 protein, partial [Homo sapiens]",554,684,0.8099,0.9688,False,INCOMPLETE
+CPSF4,CPSF4,O95639,"CAG46958.1 CPSF4, partial [Homo sapiens]",269,269,1.0,1.0,True,MATCH
+CPSF6,CPSF6,Q16630,AAH05000.1 CPSF6 protein [Homo sapiens],478,551,0.8675,0.9851,False,INCOMPLETE
+CPSF7,CPSF7,Q8N684,sp|Q8N684.1|CPSF7_HUMAN RecName: Full=Cleavage and polyadenylation specificity factor subunit 7; AltName: Full=Cleavage and polyadenylation specificity factor 59 kDa subunit; Short=CPSF 59 kDa subunit; AltName: Full=Cleavage factor Im complex 59 kDa subunit; Short=CFIm59; AltName: Full=Pre-mRNA cleavage factor Im 59 kDa subunit,471,471,1.0,1.0,True,MATCH
+CSTF2,CSTF2,P33240,NP_001293138.1 cleavage stimulation factor subunit 2 isoform 3 [Homo sapiens],560,577,0.9705,0.987,False,INCOMPLETE
+CSTF2T,CSTF2T,Q9H0L4,NP_056050.1 cleavage stimulation factor subunit 2 tau variant [Homo sapiens],616,616,1.0,1.0,True,MATCH
+DDX21,DDX21,Q9NR30,sp|Q9NR30.5|DDX21_HUMAN RecName: Full=Nucleolar RNA helicase 2; AltName: Full=DEAD box protein 21; AltName: Full=Gu-alpha; AltName: Full=Nucleolar RNA helicase Gu; AltName: Full=Nucleolar RNA helicase II; AltName: Full=RH II/Gu,783,783,1.0,1.0,True,MATCH
+DDX24,DDX24,Q9GZR7,NP_065147.1 ATP-dependent RNA helicase DDX24 [Homo sapiens],859,859,1.0,1.0,True,MATCH
+DDX3X,DDX3X,O00571,NP_001350748.1 ATP-dependent RNA helicase DDX3X isoform 4 [Homo sapiens],475,662,0.7175,0.9828,False,INCOMPLETE
+DDX42,DDX42,Q86XP3,NP_987095.1 ATP-dependent RNA helicase DDX42 [Homo sapiens],938,938,1.0,1.0,True,MATCH
+DDX51,DDX51,Q8N8A6,sp|Q8N8A6.3|DDX51_HUMAN RecName: Full=ATP-dependent RNA helicase DDX51; AltName: Full=DEAD box protein 51,666,666,1.0,1.0,True,MATCH
+DDX52,DDX52,Q9Y2R4,NP_008941.3 probable ATP-dependent RNA helicase DDX52 isoform 1 [Homo sapiens],599,599,1.0,1.0,True,MATCH
+DDX55,DDX55,Q8NHQ9,sp|Q8NHQ9.3|DDX55_HUMAN RecName: Full=ATP-dependent RNA helicase DDX55; AltName: Full=DEAD box protein 55,600,600,1.0,1.0,True,MATCH
+DDX59,DDX59,Q5T1V6,NP_001336728.1 probable ATP-dependent RNA helicase DDX59 isoform 1 [Homo sapiens],619,619,1.0,1.0,True,MATCH
+DDX6,DDX6,P26196,NP_001412080.1 probable ATP-dependent RNA helicase DDX6 isoform 4 [Homo sapiens],434,483,0.8986,0.9788,False,INCOMPLETE
+DGCR8,DGCR8,Q8WYQ5,AAF82263.1 DGCR8 [Homo sapiens],247,773,0.3195,0.9706,False,INCOMPLETE
+DHX30,DHX30,Q7L2E3,NP_001317919.1 ATP-dependent RNA helicase DHX30 isoform 4 [Homo sapiens],1166,1194,0.9765,1.0,True,MATCH
+DKC1,DKC1,O60832,NP_001275676.1 H/ACA ribonucleoprotein complex subunit DKC1 isoform 3 [Homo sapiens],420,514,0.8171,0.9976,False,INCOMPLETE
+DROSHA,DROSHA,Q9NRR4,sp|Q9NRR4.2|RNC_HUMAN RecName: Full=Ribonuclease 3; AltName: Full=Protein Drosha; AltName: Full=Ribonuclease III; Short=RNase III; AltName: Full=p241,1374,1374,1.0,1.0,True,MATCH
+EFTUD2,EFTUD2,Q15029,NP_001245283.1 116 kDa U5 small nuclear ribonucleoprotein component isoform c [Homo sapiens],962,972,0.9897,0.9916,False,MATCH
+EIF3D,EIF3D,O15371,sp|O15371.1|EIF3D_HUMAN RecName: Full=Eukaryotic translation initiation factor 3 subunit D; Short=eIF3d; AltName: Full=Eukaryotic translation initiation factor 3 subunit 7; AltName: Full=eIF-3-zeta; AltName: Full=eIF3 p66,548,548,1.0,1.0,True,MATCH
+EIF3G,EIF3G,O75821,sp|O75821.2|EIF3G_HUMAN RecName: Full=Eukaryotic translation initiation factor 3 subunit G; Short=eIF3g; AltName: Full=Eukaryotic translation initiation factor 3 RNA-binding subunit; Short=eIF-3 RNA-binding subunit; AltName: Full=Eukaryotic translation initiation factor 3 subunit 4; AltName: Full=eIF-3-delta; AltName: Full=eIF3 p42; AltName: Full=eIF3 p44,320,320,1.0,1.0,True,MATCH
+EIF3H,EIF3H,O15372,sp|O15372.1|EIF3H_HUMAN RecName: Full=Eukaryotic translation initiation factor 3 subunit H; Short=eIF3h; AltName: Full=Eukaryotic translation initiation factor 3 subunit 3; AltName: Full=eIF-3-gamma; AltName: Full=eIF3 p40 subunit,352,352,1.0,1.0,True,MATCH
+EIF4A3,EIF4A3,P38919,NP_055555.1 eukaryotic initiation factor 4A-III isoform 1 [Homo sapiens],411,411,1.0,1.0,True,MATCH
+EIF4G2,EIF4G2,P78344,AAH65276.1 EIF4G2 protein [Homo sapiens],701,907,0.7729,1.0,True,INCOMPLETE
+ELAVL1,ELAVL1,Q15717,XP_054176124.1 ELAV-like protein 1 isoform X2 [Homo sapiens],179,326,0.5491,0.7941,False,INCOMPLETE
+EWSR1,EWSR1,Q01844,CAG30376.1 EWSR1 [Homo sapiens],655,656,0.9985,0.986,False,INCOMPLETE
+EXOSC5,EXOSC5,Q9NQT4,NP_064543.3 exosome complex component RRP46 [Homo sapiens],235,235,1.0,1.0,True,MATCH
+FAM120A,FAM120A,Q9NZB2,"AAH07879.2 FAM120A protein, partial [Homo sapiens]",495,1118,0.4428,0.9691,False,INCOMPLETE
+FASTKD2,FASTKD2,Q9NYY8,"NP_001129666.1 FAST kinase domain-containing protein 2, mitochondrial [Homo sapiens]",710,710,1.0,1.0,True,MATCH
+FBL,FBL,P22087,CAG33350.1 FBL [Homo sapiens],321,321,1.0,1.0,True,MATCH
+FIP1L1,FIP1L1,Q6UN15,AAH52959.1 FIP1L1 protein [Homo sapiens],559,594,0.9411,0.8907,False,INCOMPLETE
+FKBP4,FKBP4,Q02790,NP_002005.1 peptidyl-prolyl cis-trans isomerase FKBP4 [Homo sapiens],459,459,1.0,1.0,True,MATCH
+FMR1,FMR1,Q06787,"AAN86723.1 FMR1, partial [Homo sapiens]",65,632,0.1028,0.1429,False,WRONG_OR_SEVERE_FRAGMENT
+FTO,FTO,Q9C0B1,NP_001350917.1 alpha-ketoglutarate-dependent dioxygenase FTO isoform 12 [Homo sapiens],482,505,0.9545,0.9429,False,INCOMPLETE
+FUS,FUS,P35637,CAG33028.1 FUS [Homo sapiens],526,526,1.0,1.0,True,MATCH
+FXR1,FXR1,P51114,AAC50155.1 FXR1 [Homo sapiens],621,621,1.0,0.9771,False,INCOMPLETE
+FXR2,FXR2,P51116,XP_054173848.1 RNA-binding protein FXR2 isoform X1 [Homo sapiens],653,673,0.9703,0.9829,False,INCOMPLETE
+G3BP1,G3BP1,Q13283,NP_938405.1 ras GTPase-activating protein-binding protein 1 [Homo sapiens],466,466,1.0,1.0,True,MATCH
+GEMIN5,GEMIN5,Q8TEQ6,sp|Q8TEQ6.3|GEMI5_HUMAN RecName: Full=Gem-associated protein 5; Short=Gemin5,1508,1508,1.0,1.0,True,MATCH
+GNL3,GNL3,Q9BVP2,NP_996561.1 guanine nucleotide-binding protein-like 3 isoform 2 [Homo sapiens],537,549,0.9781,1.0,True,MATCH
+GPKOW,GPKOW,Q92917,NP_056513.2 G-patch domain and KOW motifs-containing protein [Homo sapiens],476,476,1.0,1.0,True,MATCH
+GRWD1,GRWD1,Q9BQ67,NP_113673.3 glutamate-rich WD repeat-containing protein 1 [Homo sapiens],446,446,1.0,1.0,True,MATCH
+GTF2F1,GTF2F1,P35269,CAG33079.1 GTF2F1 [Homo sapiens],517,517,1.0,0.998,False,MATCH
+HLTF,HLTF,Q14527,"AAH15498.1 HLTF protein, partial [Homo sapiens]",455,1009,0.4509,0.9978,False,INCOMPLETE
+HNRNPA1,HNRNPA1,P09651,"sp|P09651.5|ROA1_HUMAN RecName: Full=Heterogeneous nuclear ribonucleoprotein A1; Short=hnRNP A1; AltName: Full=Helix-destabilizing protein; AltName: Full=Single-strand RNA-binding protein; AltName: Full=hnRNP core protein A1; Contains: RecName: Full=Heterogeneous nuclear ribonucleoprotein A1, N-terminally processed",372,372,1.0,1.0,True,MATCH
+HNRNPC,HNRNPC,P07910,NP_001070911.1 heterogeneous nuclear ribonucleoproteins C1/C2 isoform b [Homo sapiens],293,306,0.9575,0.9718,False,INCOMPLETE
+HNRNPD,HNRNPD,Q14103,sp|Q14103.1|HNRPD_HUMAN RecName: Full=Heterogeneous nuclear ribonucleoprotein D0; Short=hnRNP D0; AltName: Full=AU-rich element RNA-binding protein 1,355,355,1.0,1.0,True,MATCH
+HNRNPF,HNRNPF,P52597,NP_001091677.1 heterogeneous nuclear ribonucleoprotein F [Homo sapiens],415,415,1.0,1.0,True,MATCH
+HNRNPK,HNRNPK,P61978,NP_001305116.1 heterogeneous nuclear ribonucleoprotein K isoform d [Homo sapiens],440,463,0.9503,0.9652,False,INCOMPLETE
+HNRNPM,HNRNPM,P52272,NP_001284347.1 heterogeneous nuclear ribonucleoprotein M isoform c [Homo sapiens],595,730,0.8151,0.9879,False,INCOMPLETE
+HNRNPU,HNRNPU,Q00839,NP_114032.2 heterogeneous nuclear ribonucleoprotein U isoform a [Homo sapiens],825,825,1.0,1.0,True,MATCH
+HNRNPUL1,HNRNPUL1,Q9BUJ2,CCO13744.1 alternative protein HNRNPUL1 [Homo sapiens],285,856,0.3329,0.0,False,WRONG_OR_SEVERE_FRAGMENT
+IGF2BP1,IGF2BP1,Q9NZI8,NP_001153895.1 insulin-like growth factor 2 mRNA-binding protein 1 isoform 2 [Homo sapiens],438,577,0.7591,0.9814,False,INCOMPLETE
+IGF2BP2,IGF2BP2,Q9Y6M1,NP_006539.3 insulin-like growth factor 2 mRNA-binding protein 2 isoform a [Homo sapiens],599,599,1.0,1.0,True,MATCH
+IGF2BP3,IGF2BP3,O00425,NP_006538.2 insulin-like growth factor 2 mRNA-binding protein 3 [Homo sapiens],579,579,1.0,1.0,True,MATCH
+ILF3,ILF3,Q12906,"CAC01124.1 ILF3, partial [Homo sapiens]",441,894,0.4933,0.9769,False,INCOMPLETE
+KHDRBS1,KHDRBS1,Q07666,AAH10132.1 KHDRBS1 protein [Homo sapiens],381,443,0.86,0.9677,False,INCOMPLETE
+KHSRP,KHSRP,Q92945,AAH85004.1 KHSRP protein [Homo sapiens],710,711,0.9986,0.9413,False,INCOMPLETE
+LARP4,LARP4,Q71RC2,AAH63479.1 LARP4 protein [Homo sapiens],374,724,0.5166,0.9945,False,INCOMPLETE
+LARP7,LARP7,Q4G0J3,"AAI07710.2 LARP7 protein, partial [Homo sapiens]",288,582,0.4948,0.9964,False,INCOMPLETE
+LIN28A,LIN28A,Q9H9Z2,NP_078950.1 protein lin-28 homolog A [Homo sapiens],209,209,1.0,1.0,True,MATCH
+LIN28B,LIN28B,Q6ZN17,AAZ38897.1 LIN28B [Homo sapiens],250,250,1.0,1.0,True,MATCH
+LSM11,LSM11,P83369,NP_775762.1 U7 snRNA-associated Sm-like protein LSm11 [Homo sapiens],360,360,1.0,1.0,True,MATCH
+METAP2,METAP2,P50579,NP_001317175.1 methionine aminopeptidase 2 isoform 4 [Homo sapiens],477,478,0.9979,0.9829,False,INCOMPLETE
+METTL14,METTL14,Q9HCE5,NP_066012.1 N6-adenosine-methyltransferase non-catalytic subunit [Homo sapiens],456,456,1.0,1.0,True,MATCH
+METTL3,METTL3,Q86U44,NP_062826.2 N6-adenosine-methyltransferase catalytic subunit [Homo sapiens],580,580,1.0,1.0,True,MATCH
+MOV10,MOV10,Q9HCE1,"EAW56531.1 Mov10, Moloney leukemia virus 10, homolog (mouse), isoform CRA_d, partial [Homo sapiens]",561,1003,0.5593,0.9167,False,INCOMPLETE
+MTPAP,MTPAP,Q9NVV4,"sp|Q9NVV4.1|PAPD1_HUMAN RecName: Full=Poly(A) RNA polymerase, mitochondrial; Short=PAP; AltName: Full=PAP-associated domain-containing protein 1; AltName: Full=Polynucleotide adenylyltransferase; AltName: Full=Terminal uridylyltransferase 1; Short=TUTase 1; AltName: Full=mtPAP; Flags: Precursor",582,582,1.0,1.0,True,MATCH
+NCBP2,NCBP2,P52298,OWK06031.1 NCBP2 [Cervus elaphus hippelaphus],86,156,0.5513,1.0,True,INCOMPLETE
+NIP7,NIP7,Q9Y221,NP_001186363.1 60S ribosome subunit biogenesis protein NIP7 homolog isoform 2 [Homo sapiens],133,180,0.7389,0.9274,False,INCOMPLETE
+NIPBL,NIPBL,Q6KC79,"AAI46822.1 NIPBL protein, partial [Homo sapiens]",1176,2804,0.4194,0.9991,False,INCOMPLETE
+NKRF,NKRF,O15226,NP_001404819.1 NF-kappa-B-repressing factor [Homo sapiens],784,690,1.1362,0.881,True,INCOMPLETE
+NOL12,NOL12,Q9UGY1,AAH02808.1 NOL12 protein [Homo sapiens],213,213,1.0,1.0,True,MATCH
+NOLC1,NOLC1,Q14978,AAH06769.1 NOLC1 protein [Homo sapiens],418,699,0.598,1.0,True,INCOMPLETE
+NONO,NONO,Q15233,CAG33042.1 NONO [Homo sapiens],471,471,1.0,1.0,True,MATCH
+NOP56,NOP56,O00567,"AAH18421.1 NOP56 protein, partial [Homo sapiens]",447,594,0.7525,0.9954,False,INCOMPLETE
+NOP58,NOP58,Q9Y2X3,"AAH09306.1 NOP58 protein, partial [Homo sapiens]",522,529,0.9868,1.0,True,MATCH
+NPM1,NPM1,P06748,AAH09623.1 NPM1 protein [Homo sapiens],265,294,0.9014,0.9688,False,INCOMPLETE
+NUDT21,NUDT21,O43809,sp|O43809.1|CPSF5_HUMAN RecName: Full=Cleavage and polyadenylation specificity factor subunit 5; AltName: Full=Cleavage and polyadenylation specificity factor 25 kDa subunit; Short=CPSF 25 kDa subunit; AltName: Full=Cleavage factor Im complex 25 kDa subunit; Short=CFIm25; AltName: Full=Nucleoside diphosphate-linked moiety X motif 21; Short=Nudix motif 21; AltName: Full=Nudix hydrolase 21; AltName: Full=Pre-mRNA cleavage factor Im 68 kDa subunit,227,227,1.0,1.0,True,MATCH
+PABPC4,PABPC4,Q13310,AAI18569.1 PABPC4 protein [Homo sapiens],252,644,0.3913,0.8889,False,INCOMPLETE
+PABPN1,PABPN1,Q86U42,NP_001347480.1 polyadenylate-binding protein 2 isoform 2 [Homo sapiens],296,306,0.9673,0.993,False,INCOMPLETE
+PCBP1,PCBP1,Q15365,NP_006187.2 poly(rC)-binding protein 1 [Homo sapiens],356,356,1.0,1.0,True,MATCH
+PCBP2,PCBP2,Q15366,AAI07689.1 PCBP2 protein [Homo sapiens],335,365,0.9178,0.9417,False,INCOMPLETE
+PHF6,PHF6,Q8IWS0,NP_001015877.1 PHD finger protein 6 isoform 1 [Homo sapiens],365,365,1.0,1.0,True,MATCH
+PPIG,PPIG,Q13427,AAI11694.1 PPIG protein [Homo sapiens],739,754,0.9801,0.9753,False,INCOMPLETE
+PRPF4,PRPF4,O43172,CAG33386.1 PRPF4 [Homo sapiens],521,522,0.9981,0.9805,False,INCOMPLETE
+PRPF8,PRPF8,Q6P2Q9,sp|Q6P2Q9.2|PRP8_HUMAN RecName: Full=Pre-mRNA-processing-splicing factor 8; AltName: Full=220 kDa U5 snRNP-specific protein; AltName: Full=PRP8 homolog; AltName: Full=Splicing factor Prp8; AltName: Full=p220,2335,2335,1.0,1.0,True,MATCH
+PTBP1,PTBP1,P26599,NP_114368.1 polypyrimidine tract-binding protein 1 isoform c [Homo sapiens],531,557,0.9533,0.9847,False,INCOMPLETE
+PTBP2,PTBP2,Q9UKA9,NP_001397762.1 polypyrimidine tract-binding protein 2 isoform 8 [Homo sapiens],539,531,1.0151,0.9792,False,INCOMPLETE
+PUM1,PUM1,Q14671,NP_001018494.1 pumilio homolog 1 isoform 1 [Homo sapiens],1188,1186,1.0017,0.9907,False,MATCH
+PUM2,PUM2,Q8TB72,AAI43551.1 PUM2 protein [Homo sapiens],985,1066,0.924,0.9816,False,INCOMPLETE
+PUS1,PUS1,Q9Y606,"KAG8202666.1 PUS1, partial [Candida africana]",448,427,1.0492,0.0,False,WRONG_OR_SEVERE_FRAGMENT
+QKI,QKI,Q96PU8,ABC88600.1 QKI [Homo sapiens],333,341,0.9765,0.9414,False,INCOMPLETE
+RBFOX2,RBFOX2,O43251,NP_001381043.1 RNA binding protein fox-1 homolog 2 isoform 25 [Homo sapiens],437,390,1.1205,0.6495,False,INCOMPLETE
+RBM15,RBM15,Q96T37,AAI03508.1 RBM15 protein [Homo sapiens],969,977,0.9918,0.9844,False,INCOMPLETE
+RBM22,RBM22,Q9NW64,NP_060517.1 pre-mRNA-splicing factor RBM22 [Homo sapiens],420,420,1.0,1.0,True,MATCH
+RBM27,RBM27,Q9P2N5,sp|Q9P2N5.2|RBM27_HUMAN RecName: Full=RNA-binding protein 27; AltName: Full=RNA-binding motif protein 27,1060,1060,1.0,1.0,True,MATCH
+RBPMS,RBPMS,Q93062,sp|Q93062.1|RBPMS_HUMAN RecName: Full=RNA-binding protein with multiple splicing; Short=RBP-MS; Short=RBPMS; AltName: Full=Heart and RRM expressed sequence; Short=Hermes,196,196,1.0,1.0,True,MATCH
+RPS11,RPS11,P62280,NP_001006.1 small ribosomal subunit protein uS17 [Homo sapiens],158,158,1.0,1.0,True,MATCH
+RPS3,RPS3,P23396,"AAI50502.1 RPS3 protein, partial [Homo sapiens]",133,243,0.5473,0.8871,False,INCOMPLETE
+RTCB,RTCB,Q9Y3I0,NP_055121.1 RNA-splicing ligase RtcB homolog [Homo sapiens],505,505,1.0,1.0,True,MATCH
+SAFB2,SAFB2,Q14151,"AAH14784.1 SAFB2 protein, partial [Homo sapiens]",526,953,0.5519,0.9729,False,INCOMPLETE
+SBDS,SBDS,Q9Y3A5,NP_057122.2 ribosome maturation protein SBDS [Homo sapiens],250,250,1.0,1.0,True,MATCH
+SDAD1,SDAD1,Q9NVU7,NP_001275912.1 protein SDA1 homolog isoform 2 [Homo sapiens],650,687,0.9461,0.9875,False,INCOMPLETE
+SERBP1,SERBP1,Q8NC51,NP_056455.3 SERPINE1 mRNA-binding protein 1 isoform 4 [Homo sapiens],387,408,0.9485,0.955,False,INCOMPLETE
+SF3A3,SF3A3,Q12874,NP_006793.1 splicing factor 3A subunit 3 isoform 1 [Homo sapiens],501,501,1.0,1.0,True,MATCH
+SF3B1,SF3B1,O75533,"AAH29418.1 SF3B1 protein, partial [Homo sapiens]",501,1304,0.3842,0.9634,False,INCOMPLETE
+SF3B4,SF3B4,Q15427,NP_005841.1 splicing factor 3B subunit 4 [Homo sapiens],424,424,1.0,1.0,True,MATCH
+SLBP,SLBP,Q14493,NP_001293003.1 histone RNA hairpin-binding protein isoform 2 [Homo sapiens],235,270,0.8704,0.9602,False,INCOMPLETE
+SLTM,SLTM,Q9NWH9,"AAH46119.3 SLTM protein, partial [Homo sapiens]",502,1034,0.4855,1.0,True,INCOMPLETE
+SMNDC1,SMNDC1,O75940,sp|O75940.1|SPF30_HUMAN RecName: Full=Survival of motor neuron-related-splicing factor 30; AltName: Full=30 kDa splicing factor SMNrp; AltName: Full=SMN-related protein; AltName: Full=Survival motor neuron domain-containing protein 1,238,238,1.0,1.0,True,MATCH
+SND1,SND1,Q7KZF4,NP_055205.2 staphylococcal nuclease domain-containing protein 1 [Homo sapiens],910,910,1.0,1.0,True,MATCH
+SRRM4,SRRM4,A7MD48,NP_919262.2 serine/arginine repetitive matrix protein 4 [Homo sapiens],611,611,1.0,1.0,True,MATCH
+SRSF1,SRSF1,Q07955,NP_008855.1 serine/arginine-rich splicing factor 1 isoform 1 [Homo sapiens],248,248,1.0,1.0,True,MATCH
+SRSF7,SRSF7,Q16629,NP_001026854.1 serine/arginine-rich splicing factor 7 isoform 1 [Homo sapiens],238,238,1.0,1.0,True,MATCH
+SRSF9,SRSF9,Q13242,NP_003760.1 serine/arginine-rich splicing factor 9 [Homo sapiens],221,221,1.0,1.0,True,MATCH
+SUB1,SUB1,P53999,"EAX10796.1 SUB1 homolog (S. cerevisiae), isoform CRA_a [Homo sapiens]",127,127,1.0,1.0,True,MATCH
+SUPV3L1,SUPV3L1,Q8IYB8,"NP_003162.2 ATP-dependent RNA helicase SUPV3L1, mitochondrial isoform 1 [Homo sapiens]",786,786,1.0,1.0,True,MATCH
+TAF15,TAF15,Q92804,"EAW80125.1 TAF15 RNA polymerase II, TATA box binding protein (TBP)-associated factor, 68kDa, isoform CRA_b [Homo sapiens]",592,592,1.0,1.0,True,MATCH
+TARDBP,TARDBP,Q13148,CAG38565.1 TARDBP [Homo sapiens],414,414,1.0,1.0,True,MATCH
+TBRG4,TBRG4,Q969Z0,NP_004740.2 FAST kinase domain-containing protein 4 isoform 1 [Homo sapiens],631,631,1.0,1.0,True,MATCH
+TIA1,TIA1,P31483,NP_071505.2 cytotoxic granule associated RNA binding protein TIA1 isoform 2 [Homo sapiens],386,386,1.0,1.0,True,MATCH
+TIAL1,TIAL1,Q01085,NP_003243.1 nucleolysin TIAR isoform 1 [Homo sapiens],375,375,1.0,1.0,True,MATCH
+TNRC6A,TNRC6A,Q8NDV7,NP_055309.2 trinucleotide repeat-containing gene 6A protein isoform 1 [Homo sapiens],1962,1962,1.0,1.0,True,MATCH
+TRA2A,TRA2A,Q13595,NP_037425.1 transformer-2 protein homolog alpha isoform 1 [Homo sapiens],282,282,1.0,1.0,True,MATCH
+TROVE2,TROVE2,P10155,NP_001317949.1 RNA-binding protein RO60 isoform 5 [Homo sapiens],263,538,0.4888,1.0,True,INCOMPLETE
+U2AF1,U2AF1,Q01081,NP_006749.1 splicing factor U2AF 35 kDa subunit isoform a [Homo sapiens],240,240,1.0,1.0,True,MATCH
+U2AF2,U2AF2,P26368,NP_009210.1 splicing factor U2AF 65 kDa subunit isoform a [Homo sapiens],475,475,1.0,1.0,True,MATCH
+U2AF65,U2AF2,P26368,sp|P26368.4|U2AF2_HUMAN RecName: Full=Splicing factor U2AF 65 kDa subunit; AltName: Full=U2 auxiliary factor 65 kDa subunit; Short=hU2AF(65); Short=hU2AF65; AltName: Full=U2 snRNP auxiliary factor large subunit,475,475,1.0,1.0,True,MATCH
+UCHL5,UCHL5,Q9Y5K5,NP_001186190.1 ubiquitin carboxyl-terminal hydrolase isozyme L5 isoform 2 [Homo sapiens],328,329,0.997,0.9781,False,INCOMPLETE
+UPF1,UPF1,Q92900,NP_002902.2 regulator of nonsense transcripts 1 isoform 2 [Homo sapiens],1118,1129,0.9903,0.9919,False,MATCH
+UTP18,UTP18,Q9Y5J1,NP_057085.2 U3 small nucleolar RNA-associated protein 18 homolog [Homo sapiens],556,556,1.0,1.0,True,MATCH
+UTP3,UTP3,Q9NQZ2,NP_065101.1 something about silencing protein 10 [Homo sapiens],479,479,1.0,1.0,True,MATCH
+WDR3,WDR3,Q9UNX4,NP_006775.1 WD repeat-containing protein 3 [Homo sapiens],943,943,1.0,1.0,True,MATCH
+WDR33,WDR33,Q9C0J8,NP_060853.3 pre-mRNA 3' end processing protein WDR33 isoform 1 [Homo sapiens],1336,1336,1.0,1.0,True,MATCH
+WDR43,WDR43,Q15061,NP_055946.1 WD repeat-containing protein 43 [Homo sapiens],677,677,1.0,1.0,True,MATCH
+WRN,WRN,Q14191,NP_000544.2 bifunctional 3'-5' exonuclease/ATP-dependent helicase WRN [Homo sapiens],1432,1432,1.0,1.0,True,MATCH
+WTAP,WTAP,Q15007,NP_001257460.1 pre-mRNA-splicing regulator WTAP isoform 1 [Homo sapiens],396,396,1.0,1.0,True,MATCH
+XRCC6,XRCC6,P12956,NP_001460.1 X-ray repair cross-complementing protein 6 isoform 1 [Homo sapiens],609,609,1.0,1.0,True,MATCH
+XRN2,XRN2,Q9H0D6,NP_036387.2 5'-3' exoribonuclease 2 isoform 2 [Homo sapiens],950,950,1.0,1.0,True,MATCH
+YBX3,YBX3,P16989,NP_003642.3 Y-box-binding protein 3 isoform a [Homo sapiens],372,372,1.0,1.0,True,MATCH
+YTHDF2,YTHDF2,Q9Y5A9,NP_057342.2 YTH domain-containing family protein 2 isoform 1 [Homo sapiens],579,579,1.0,1.0,True,MATCH
+YWHAG,YWHAG,P61981,NP_036611.2 14-3-3 protein gamma [Homo sapiens],247,247,1.0,1.0,True,MATCH
+ZC3H11A,ZC3H11A,O75152,NP_001363271.1 zinc finger CCCH domain-containing protein 11A isoform 1 [Homo sapiens],810,810,1.0,1.0,True,MATCH
+ZC3H7B,ZC3H7B,Q9UGR2,NP_060060.3 zinc finger CCCH domain-containing protein 7B [Homo sapiens],977,977,1.0,1.0,True,MATCH
+ZNF622,ZNF622,Q969S3,NP_219482.1 cytoplasmic 60S subunit biogenesis factor ZNF622 [Homo sapiens],477,477,1.0,1.0,True,MATCH
+ZNF800,ZNF800,Q2TB10,NP_789784.2 zinc finger protein 800 [Homo sapiens],664,664,1.0,1.0,True,MATCH
+ZRANB2,ZRANB2,O95218,NP_976225.1 zinc finger Ran-binding domain-containing protein 2 isoform 1 [Homo sapiens],330,330,1.0,1.0,True,MATCH
+eIF4AIII,EIF4A3,P38919,NP_055555.1 eukaryotic initiation factor 4A-III isoform 1 [Homo sapiens],411,411,1.0,1.0,True,MATCH
