@@ -151,7 +151,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from utils.conv_layer import Conv1d, SimpleConvKAN_1layer
 from torch_geometric.nn import GCNConv
-from typing import List
+from typing import Iterable, List, Union
 
 
 # Channel width contributed to the fused ADPNet input by each modality branch.
@@ -341,7 +341,7 @@ class BRIDGE(nn.Module):
     def __init__(
         self,
         k: int = 3,
-        drop_feature: str = None,
+        drop_feature: Union[str, Iterable[str], None] = None,
         kan_to_mlp: bool = False,
         adpnet_to_gap: bool = False,
         adpnet_to_attnpool: bool = False,
@@ -354,10 +354,13 @@ class BRIDGE(nn.Module):
         """
         Args:
             k: convolution kernel size for the structure/biochem branches (as before).
-            drop_feature: if set, removes one input-feature branch entirely and shrinks the
-                fused ADPNet/GAP/attention-pool input from 512 by
-                ``FEATURE_CHANNELS[drop_feature]``. One of
-                ``{"gcn","sequence","structure","motif","biochem"}`` or ``None`` (baseline).
+            drop_feature: if set, removes one or more input-feature branches entirely and
+                shrinks the fused ADPNet/GAP/attention-pool input from 512 by the sum of
+                ``FEATURE_CHANNELS[f]`` over the dropped branches. Accepts a single feature
+                name (``str``), an iterable of feature names (e.g. a ``set``/``list``, for
+                dropping several branches at once -- see ``ablation.registry.LEAN_CONFIG``),
+                or ``None`` (baseline, nothing dropped). Each name must be one of
+                ``{"gcn","sequence","structure","motif","biochem"}``.
             kan_to_mlp: if True, replace every ``multiscaleKAN`` block with the structurally
                 identical ``multiscaleMLP`` (Conv1d in place of the KAN operator).
             adpnet_to_gap: if True, replace the ``ADPNet`` head with ``GAPHead`` (global
@@ -396,18 +399,29 @@ class BRIDGE(nn.Module):
                 sequence-embedding space (RNA-BERT) attending over another (ESM-2), with no
                 engineered-feature context mixed in. Isolates whether an AUC delta comes from
                 real sequence-level RNA-protein complementarity vs. extra fusion capacity from
-                the other branches. Ignored when ``attn_protein=False``. Requires
-                ``drop_feature != "sequence"`` (there is no ``x0`` to attend from otherwise).
+                the other branches. Ignored when ``attn_protein=False``. Requires that
+                ``"sequence"`` not be among the dropped features (there is no ``x0`` to attend
+                from otherwise).
 
         With all four (five) at their defaults this reproduces the original baseline model
         exactly (identical module construction order, so fixed-seed initialization is
         unchanged for every config that leaves ``add_protein=False`` and ``attn_protein=False``).
         """
         super().__init__()
-        if drop_feature is not None and drop_feature not in FEATURE_CHANNELS:
+        # Normalize drop_feature to a frozenset of branch names, whether the caller passed
+        # a single string, an iterable of strings, or None. A bare string is iterable itself
+        # (would silently split into characters), so it must be special-cased.
+        if drop_feature is None:
+            drop_feature = frozenset()
+        elif isinstance(drop_feature, str):
+            drop_feature = frozenset({drop_feature})
+        else:
+            drop_feature = frozenset(drop_feature)
+        unknown = drop_feature - FEATURE_CHANNELS.keys()
+        if unknown:
             raise ValueError(
-                f"Unknown drop_feature {drop_feature!r}; expected one of "
-                f"{list(FEATURE_CHANNELS)} or None"
+                f"Unknown drop_feature {sorted(unknown)!r}; expected any of "
+                f"{list(FEATURE_CHANNELS)}"
             )
         if adpnet_to_gap and adpnet_to_attnpool:
             raise ValueError(
@@ -429,10 +443,10 @@ class BRIDGE(nn.Module):
             raise ValueError(
                 f"attn_protein_scope must be 'full' or 'sequence', got {attn_protein_scope!r}."
             )
-        if attn_protein and attn_protein_scope == "sequence" and drop_feature == "sequence":
+        if attn_protein and attn_protein_scope == "sequence" and "sequence" in drop_feature:
             raise ValueError(
-                "attn_protein_scope='sequence' requires the sequence branch (drop_feature "
-                "must not be 'sequence')."
+                "attn_protein_scope='sequence' requires the sequence branch ('sequence' must "
+                "not be among the dropped features)."
             )
         self.drop_feature = drop_feature
         self.kan_to_mlp = kan_to_mlp
@@ -450,23 +464,23 @@ class BRIDGE(nn.Module):
         # NOTE: construction order below is kept identical to the original model so that,
         # for the baseline config, per-layer RNG consumption (and thus fixed-seed init) is
         # byte-for-byte unchanged. Ablated branches are simply skipped.
-        if drop_feature != "sequence":
+        if "sequence" not in drop_feature:
             self.conv_bert = Conv1d(512, 256, kernel_size=(1,), stride=1)
-        if drop_feature != "structure":
+        if "structure" not in drop_feature:
             self.conv_str = Conv1d(1, 128, kernel_size=(k,), stride=1, same_padding=True)
-        if drop_feature != "motif":
+        if "motif" not in drop_feature:
             self.conv_motif = Conv1d(1, 64, kernel_size=(1,), stride=1)
-        if drop_feature != "biochem":
+        if "biochem" not in drop_feature:
             self.conv_biochem = Conv1d(99, 32, kernel_size=(k,), stride=1, same_padding=True)
 
         # ===== Multiscale feature extractors (KAN or MLP) =====
-        if drop_feature != "sequence":
+        if "sequence" not in drop_feature:
             self.multiscale_bert = ms(256, 128)
-        if drop_feature != "structure":
+        if "structure" not in drop_feature:
             self.multiscale_str = ms(128, 64)
-        if drop_feature != "motif":
+        if "motif" not in drop_feature:
             self.multiscale_motif = ms(64, 32)
-        if drop_feature != "biochem":
+        if "biochem" not in drop_feature:
             self.multiscale_biochem = ms(32, 16)
 
         # ===== Protein branch (optional additive control; see add_protein docstring above) =====
@@ -486,7 +500,7 @@ class BRIDGE(nn.Module):
             if attn_protein_scope == "sequence":
                 q_in_ch = FEATURE_CHANNELS["sequence"]
             else:
-                q_in_ch = 512 - FEATURE_CHANNELS.get(drop_feature, 0)
+                q_in_ch = 512 - sum(FEATURE_CHANNELS[f] for f in drop_feature)
             self.protein_query_proj = Conv1d(q_in_ch, PROTEIN_ATTN_DMODEL, kernel_size=(1,), stride=1)
             self.protein_kv_proj = nn.Linear(protein_residue_vector.shape[-1], PROTEIN_ATTN_DMODEL)
             self.protein_cross_attn = nn.MultiheadAttention(
@@ -499,7 +513,7 @@ class BRIDGE(nn.Module):
         # ===== Classifier head (ADPNet pyramid, GAP, or attention pool) over the fused features =====
         fusion_ch = (
             512
-            - FEATURE_CHANNELS.get(drop_feature, 0)
+            - sum(FEATURE_CHANNELS[f] for f in drop_feature)
             + (PROTEIN_CHANNELS if add_protein else 0)
             + (PROTEIN_ATTN_CHANNELS if attn_protein else 0)
         )
@@ -511,7 +525,7 @@ class BRIDGE(nn.Module):
             self.adpnet = ADPNet(fusion_ch, number_of_layers)
 
         # ===== Graph Convolution =====
-        if drop_feature != "gcn":
+        if "gcn" not in drop_feature:
             self.gcn = GCNConv(512, 32)
 
         # ===== Initialize weights =====
@@ -605,7 +619,7 @@ class BRIDGE(nn.Module):
         feats = []
 
         # ===== Graph branch (GCN over tokens) =====
-        if self.drop_feature != "gcn":
+        if "gcn" not in self.drop_feature:
             node_features = bert_embedding  # (B, 512, L)
             adj = attn                      # (B, L, L)
 
@@ -628,19 +642,19 @@ class BRIDGE(nn.Module):
             feats.append(xg)
 
         # ===== Embedding branch =====
-        if self.drop_feature != "sequence":
+        if "sequence" not in self.drop_feature:
             x0 = self.conv_bert(bert_embedding)
             x0 = self.multiscale_bert(x0)
             feats.append(x0)
 
         # ===== Structure branch =====
-        if self.drop_feature != "structure":
+        if "structure" not in self.drop_feature:
             x1 = self.conv_str(structure)
             x1 = self.multiscale_str(x1)
             feats.append(x1)
 
         # ===== Motif branch =====
-        if self.drop_feature != "motif":
+        if "motif" not in self.drop_feature:
             x2 = self.conv_motif(motif)
             x2 = self.multiscale_motif(x2)
 
@@ -652,7 +666,7 @@ class BRIDGE(nn.Module):
             feats.append(x2)
 
         # ===== Biochemical branch =====
-        if self.drop_feature != "biochem":
+        if "biochem" not in self.drop_feature:
             x3 = self.conv_biochem(biochem)
             x3 = self.multiscale_biochem(x3)
             feats.append(x3)

@@ -116,6 +116,35 @@ ATTN_PROTEIN_PERM_CONFIG = {
 # and a few real training epochs) -- wired into get_configs() below. Full sweep also completed
 # (job 20270053, 258/258 datasets) -- see the RESULT note above ATTN_PROTEIN_PERM_CONFIG.
 
+# Lean BRIDGE: combines the four feature drops whose individual ablations landed at or above
+# baseline (gcn +0.0001, motif +0.0007, biochem +0.0009, sequence +0.0031 mean dAUC over the
+# 258-dataset sweep -- see docs/ablation_pipeline.md), keeping only the one branch that showed
+# a large, near-universal cost when dropped (structure, -0.0442, worse on 97% of datasets),
+# plus kan_to_mlp (also +0.0031 alone, i.e. free). ADPNet is left untouched, since both of its
+# replacements (adpnet_to_gap/adpnet_to_attnpool) were the *other* large, consistent cost
+# (~-0.026 each) -- the one part of the architecture this config deliberately does not touch.
+#
+# This is NOT validated as a joint effect -- each of the four drops was only ever measured
+# against the full 5-branch baseline, one at a time. Dropping all four simultaneously is a
+# different regime (interaction effects are possible even though each drop looks like noise in
+# isolation), so this config exists to test the combination directly rather than assume the
+# deltas sum. Fusion width: 512 - (32 + 256 + 64 + 32) = 128 (structure only). Deliberately
+# excludes every protein kwarg (add_protein/attn_protein) -- this is a baseline-vs-lean
+# comparison, not a protein-awareness experiment.
+LEAN_CONFIG = {
+    "name": "lean",
+    "ablation_type": "feature",
+    "component_removed": "gcn+sequence+motif+biochem",
+    "kwargs": {
+        # A list, not a set: run_ablation.py's best.json writer does a plain json.dump of
+        # config["kwargs"], and a set isn't JSON-serializable. BRIDGE.__init__ normalizes any
+        # iterable (list/set/tuple) to a frozenset internally, so this is behaviorally
+        # identical -- just JSON-safe.
+        "drop_feature": ["gcn", "sequence", "motif", "biochem"],
+        "kan_to_mlp": True,
+    },
+}
+
 # Module ablations: swap an internal mechanism, keeping inputs + 512 fusion fixed.
 MODULE_CONFIGS = [
     {
@@ -152,25 +181,39 @@ def get_configs(mode="all"):
         return [BASELINE] + FEATURE_CONFIGS + protein_configs
     if mode == "module":
         return [BASELINE] + MODULE_CONFIGS
+    if mode == "lean":
+        # Deliberately just baseline + lean -- not folded into "feature"/"all", which also
+        # pull in the protein configs; this mode exists so a baseline-vs-lean sweep never
+        # trains protein branches it doesn't need.
+        return [BASELINE, LEAN_CONFIG]
     if mode == "all":
         return [BASELINE] + FEATURE_CONFIGS + protein_configs + MODULE_CONFIGS
-    raise ValueError(f"Unknown mode {mode!r}; expected one of 'feature', 'module', 'all'")
+    raise ValueError(
+        f"Unknown mode {mode!r}; expected one of 'feature', 'module', 'lean', 'all'"
+    )
 
 
 def channels_removed(config):
     """Net channels removed from the 512-wide fusion (negative = net channels added).
 
-    0 for module ablations and baseline; ``FEATURE_CHANNELS[drop_feature]`` for a dropped
-    branch; ``-PROTEIN_CHANNELS``/``-PROTEIN_ATTN_CHANNELS`` for the additive ``protein``/
-    ``attn_protein`` configs.
+    0 for module ablations and baseline; sum of ``FEATURE_CHANNELS[f]`` over the dropped
+    branch(es) for a feature-drop config (``drop_feature`` may be a single feature name or an
+    iterable of several, e.g. ``LEAN_CONFIG``); ``-PROTEIN_CHANNELS``/``-PROTEIN_ATTN_CHANNELS``
+    for the additive ``protein``/``attn_protein`` configs.
     """
     drop = config["kwargs"].get("drop_feature")
+    if drop is None:
+        dropped = []
+    elif isinstance(drop, str):
+        dropped = [drop]
+    else:
+        dropped = list(drop)
     added = 0
     if config["kwargs"].get("add_protein"):
         added += PROTEIN_CHANNELS
     if config["kwargs"].get("attn_protein"):
         added += PROTEIN_ATTN_CHANNELS
-    return FEATURE_CHANNELS.get(drop, 0) - added
+    return sum(FEATURE_CHANNELS[f] for f in dropped) - added
 
 
 def fusion_channels(config):

@@ -194,7 +194,7 @@ def main():
                          help="Dir of cached {RBP}.npy per-residue ESM-2 embeddings for the "
                               "'attn_protein' config. Defaults to the Anvil path; pass "
                               "slurms/cluster/<cluster>.sh's BRIDGE_ESM_RESIDUE_CACHE_DIR elsewhere.")
-    parser.add_argument("--mode", default="all", choices=["feature", "module", "all"])
+    parser.add_argument("--mode", default="all", choices=["feature", "module", "lean", "all"])
     parser.add_argument("--seed", default=42, type=int)
     parser.add_argument("--max_epochs", default=200, type=int)
     parser.add_argument("--early_stopping", default=10, type=int)

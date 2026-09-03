@@ -36,6 +36,23 @@ config + two small refactors) plus one thin driver — not a parallel package.
 `bert_embedding` feeds both `gcn` (GCN node features) and `sequence` (`conv_bert`); `attn`
 feeds only `gcn`. They are independent branches, so dropping one does not affect the other.
 
+### Lean BRIDGE — combined drop, `mode=lean`
+
+`drop_feature` now accepts either a single feature name or an iterable of several (normalized
+internally to a `frozenset`), so a config can drop more than one branch at once. `LEAN_CONFIG`
+(`ablation/registry.py`) combines the four feature drops that individually landed at or above
+baseline in the full sweep (`gcn` +0.0001, `motif` +0.0007, `biochem` +0.0009, `sequence`
++0.0031 mean ΔAUC) with `kan_to_mlp` (also +0.0031 alone), keeping only `structure` — the one
+branch with a large, consistent cost when dropped (−0.0442, worse on 97% of datasets) — and
+leaving `ADPNet` untouched (both of its replacements cost ~−0.026, the other large, consistent
+effect in the sweep). Fusion width: 512 − (32+256+64+32) = 128.
+
+This is **not validated as a joint effect** — each drop was only ever measured one at a time
+against the full 5-branch baseline; dropping all four together is a different regime, so
+`LEAN_CONFIG` exists to test the combination directly. `run_ablation.py --mode lean` trains
+only `[none, lean]` (not folded into `feature`/`all`, which also pull in the protein configs —
+this is a baseline-vs-lean comparison, deliberately excluding every protein kwarg).
+
 ### Module ablations — swap a mechanism, keep inputs + 512 fusion
 (highlighted in [`module_ablation_image.png`](module_ablation_image.png): green = the four
 `multiscaleKAN` blocks; cyan = `ADPNet`)
