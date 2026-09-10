@@ -165,27 +165,27 @@ handlers/levels (e.g., via `logging.basicConfig`) if runtime diagnostics are des
 
 """
 
-from __future__ import annotations
+from __future__ import annotations  # allows forward-referenced/PEP 604 type hints (e.g. `os.PathLike | str`) on older Python
 
-import argparse
-import logging
-import os
-import re
-from dataclasses import dataclass
-from pathlib import Path
-from typing import List, Tuple, Dict, Optional, Callable
+import argparse  # imported for CLI-style extension; unused by this module's active code
+import logging  # used to warn when a requested BRIDGE checkpoint is missing
+import os  # path-like type hints and filesystem path handling
+import re  # regex matching for variant/region tokens in FASTA headers
+from dataclasses import dataclass  # imported for potential struct-like extension; unused directly here
+from pathlib import Path  # path manipulation for FASTA/checkpoint file locations
+from typing import List, Tuple, Dict, Optional, Callable  # type hints for the functions and class below
 
-import numpy as np
-import torch
-from torch import nn
-from torch.utils.data import DataLoader
-from transformers import BertTokenizer, BertModel
-from utils.BRIDGE import BRIDGE
+import numpy as np  # imported for array ops used by callers of this module; not directly used here
+import torch  # model device placement, checkpoint loading, and eval-mode inference
+from torch import nn  # imported for type/extension purposes; not directly used here
+from torch.utils.data import DataLoader  # imported for callers batching variant records; not directly used here
+from transformers import BertTokenizer, BertModel  # loads the pretrained tokenizer + Transformer encoder used for embeddings
+from utils.BRIDGE import BRIDGE  # the BRIDGE model class, instantiated and checkpoint-loaded by ModelHub
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-COMPLEMENT: Dict[str, str] = {"A": "T", "T": "A", "C": "G", "G": "C", "N": "N"}
+COMPLEMENT: Dict[str, str] = {"A": "T", "T": "A", "C": "G", "G": "C", "N": "N"}  # DNA Watson-Crick complement lookup, used when a '-' strand window needs allele complementing
 RIBOSNITCHES_MAX_LEN: int = 101  # matches the shapes in the provided ribosnitches code
 
 
@@ -221,38 +221,38 @@ def read_fasta(fasta_path: Path) -> Tuple[List[str], List[str]]:
         - This function does not validate alphabet (A/C/G/T/U/N). If you need strict
           validation, do it downstream.
     """
-    headers: List[str] = []
-    seqs: List[str] = []
+    headers: List[str] = []  # one header string per record, collected in file order
+    seqs: List[str] = []  # one concatenated, upper-cased sequence per record, aligned with `headers`
 
-    cur_header: Optional[str] = None
-    cur_seq_parts: List[str] = []
+    cur_header: Optional[str] = None  # header of the record currently being accumulated (None until the first '>' line)
+    cur_seq_parts: List[str] = []  # wrapped sequence lines for the record currently being accumulated
 
-    with open(fasta_path, "r", encoding="utf-8") as f:
-        for raw in f:
-            line = raw.strip()
-            if not line:
+    with open(fasta_path, "r", encoding="utf-8") as f:  # open the FASTA file as UTF-8 text
+        for raw in f:  # iterate the file line by line
+            line = raw.strip()  # drop the trailing newline (and any surrounding whitespace)
+            if not line:  # skip blank lines
                 continue
-            if line.startswith(">"):
-                if cur_header is not None:
-                    headers.append(cur_header)
-                    seqs.append("".join(cur_seq_parts).upper())
-                cur_header = line
-                cur_seq_parts = []
+            if line.startswith(">"):  # a new record's header line
+                if cur_header is not None:  # flush the previous record (if any) before starting a new one
+                    headers.append(cur_header)  # store the just-finished record's header
+                    seqs.append("".join(cur_seq_parts).upper())  # store the just-finished record's concatenated, upper-cased sequence
+                cur_header = line  # start tracking the new record's header
+                cur_seq_parts = []  # reset the sequence-line accumulator for the new record
             else:
-                cur_seq_parts.append(line)
+                cur_seq_parts.append(line)  # accumulate this wrapped sequence line for the current record
 
-    if cur_header is not None:
-        headers.append(cur_header)
-        seqs.append("".join(cur_seq_parts).upper())
+    if cur_header is not None:  # flush the final record after the loop ends (no trailing '>' to trigger it)
+        headers.append(cur_header)  # store the last record's header
+        seqs.append("".join(cur_seq_parts).upper())  # store the last record's concatenated, upper-cased sequence
 
-    return headers, seqs
+    return headers, seqs  # parallel lists: headers[i] corresponds to seqs[i]
 
 
 def open_output(out_path: os.PathLike | str) -> Path:
     """Create parent directories and return a `Path` for appending outputs."""
-    out_path = Path(out_path)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    return out_path
+    out_path = Path(out_path)  # normalize the input to a pathlib.Path
+    out_path.parent.mkdir(parents=True, exist_ok=True)  # ensure the containing directory tree exists
+    return out_path  # path ready to be opened for writing/appending
 
 
 # ---------------------------------------------------------------------------
@@ -310,22 +310,22 @@ def parse_variant_block(fasta_header: str) -> Tuple[int, str, str, str, int]:
           trailing tokens (e.g., cell line names), consider using
           ``parse_variant_block_flexible`` as a fallback.
     """
-    fields = fasta_header.lstrip(">").split()
-    if len(fields) < 3:
-        raise ValueError("Unexpected FASTA header format")
+    fields = fasta_header.lstrip(">").split()  # drop the leading '>' and split the header into whitespace-separated tokens
+    if len(fields) < 3:  # this fixed-position parser needs at least a region token and a variant token
+        raise ValueError("Unexpected FASTA header format")  # header is too short to match the expected layout
 
     region = fields[1]                             # chr1:27891903-27892003(-)[...]
     strand = region.split("(")[1].split(")")[0]    # + / -
-    seq_start = int(region.split(":")[1].split("-")[0])
+    seq_start = int(region.split(":")[1].split("-")[0])  # genomic start coordinate of the sequence window (text after ':' and before '-')
 
     var_info = fields[-2]                          # 27891953:T>A
-    variant_pos = int(var_info.split(":")[0])
-    ref_base, alt_base = var_info.split(":")[1].split(">")
+    variant_pos = int(var_info.split(":")[0])  # genomic coordinate of the variant (text before ':')
+    ref_base, alt_base = var_info.split(":")[1].split(">")  # reference and alternate alleles, split on '>'
 
-    return variant_pos, ref_base, alt_base, strand, seq_start
+    return variant_pos, ref_base, alt_base, strand, seq_start  # (position, ref, alt, strand, window start)
 
 
-_VARIANT_TOKEN_RE = re.compile(r"^\d+:[ACGT]>[ACGT]$", re.IGNORECASE)
+_VARIANT_TOKEN_RE = re.compile(r"^\d+:[ACGT]>[ACGT]$", re.IGNORECASE)  # matches a "<pos>:<ref>><alt>" variant token, e.g. "27891953:T>A"
 
 
 def _find_variant_token(fields: List[str]) -> Optional[str]:
@@ -346,10 +346,10 @@ def _find_variant_token(fields: List[str]) -> Optional[str]:
         - 'U' is not accepted by this regex. If you expect RNA tokens like ``A>U``,
           extend the pattern accordingly.
     """
-    for tok in fields:
-        if _VARIANT_TOKEN_RE.match(tok):
-            return tok
-    return None
+    for tok in fields:  # scan header tokens in order
+        if _VARIANT_TOKEN_RE.match(tok):  # check whether this token looks like "<pos>:<ref>><alt>"
+            return tok  # first matching token is taken as the variant descriptor
+    return None  # no token in this header matched the variant pattern
 
 
 def _find_region_token(fields: List[str]) -> Optional[str]:
@@ -364,11 +364,11 @@ def _find_region_token(fields: List[str]) -> Optional[str]:
             The first token that contains ':', '-', '(' and ')' (heuristic match),
             or ``None`` if not found.
     """
-    for tok in fields:
-        if ":" in tok and "-" in tok and "(" in tok and ")" in tok:
+    for tok in fields:  # scan header tokens in order
+        if ":" in tok and "-" in tok and "(" in tok and ")" in tok:  # heuristic: a region token carries all four of these characters
             # This is intentionally permissive; the exact bracket payload can vary.
-            return tok
-    return None
+            return tok  # first matching token is taken as the region descriptor
+    return None  # no token in this header matched the region heuristic
 
 
 def parse_variant_block_flexible(fasta_header: str) -> Tuple[int, str, str, str, int]:
@@ -394,28 +394,28 @@ def parse_variant_block_flexible(fasta_header: str) -> Tuple[int, str, str, str,
         Tuple[int, str, str, str, int]:
             ``(variant_pos, ref_base, alt_base, strand, seq_start)`` where each field has the same meaning as in ``parse_variant_block``.
     """
-    fields = fasta_header.lstrip(">").split()
-    if len(fields) < 3:
-        raise ValueError("Unexpected FASTA header format")
+    fields = fasta_header.lstrip(">").split()  # drop the leading '>' and split the header into whitespace-separated tokens
+    if len(fields) < 3:  # need at least enough tokens to plausibly contain a region and a variant token
+        raise ValueError("Unexpected FASTA header format")  # header is too short to be well-formed
 
-    region = _find_region_token(fields)
-    var_info = _find_variant_token(fields)
+    region = _find_region_token(fields)  # locate the region token by content rather than fixed position
+    var_info = _find_variant_token(fields)  # locate the variant token by regex rather than fixed position
 
-    if region is None or var_info is None:
-        raise ValueError("Cannot locate region token and/or variant token in FASTA header")
+    if region is None or var_info is None:  # both tokens are required to compute the return values
+        raise ValueError("Cannot locate region token and/or variant token in FASTA header")  # neither fallback heuristic found what it needed
 
-    strand = region.split("(")[1].split(")")[0]
-    seq_start = int(region.split(":")[1].split("-")[0])
+    strand = region.split("(")[1].split(")")[0]  # strand symbol between the parentheses in the region token
+    seq_start = int(region.split(":")[1].split("-")[0])  # genomic start coordinate of the sequence window
 
-    variant_pos = int(var_info.split(":")[0])
-    ref_base, alt_base = var_info.split(":")[1].split(">")
+    variant_pos = int(var_info.split(":")[0])  # genomic coordinate of the variant
+    ref_base, alt_base = var_info.split(":")[1].split(">")  # reference and alternate alleles, split on '>'
 
-    return variant_pos, ref_base, alt_base, strand, seq_start
+    return variant_pos, ref_base, alt_base, strand, seq_start  # (position, ref, alt, strand, window start)
 
 
 def apply_complement(base: str) -> str:
     """Return Watson-Crick complement for A/T/C/G; otherwise return `base` unchanged."""
-    return COMPLEMENT.get(base, base)
+    return COMPLEMENT.get(base, base)  # look up the complement; pass through unrecognized letters as-is
 
 
 def substitute_base(seq: str, pos0: int, alt: str) -> str:
@@ -434,11 +434,11 @@ def substitute_base(seq: str, pos0: int, alt: str) -> str:
     -----
     - If `seq[pos0]` already equals `alt`, we return the original string.
     """
-    if seq[pos0] == alt:
-        return seq
-    seq_list = list(seq)
-    seq_list[pos0] = alt
-    return "".join(seq_list)
+    if seq[pos0] == alt:  # already the alternate allele: nothing to change
+        return seq  # return the original string unmodified (avoids an unnecessary copy)
+    seq_list = list(seq)  # strings are immutable in Python, so convert to a mutable list of characters
+    seq_list[pos0] = alt  # overwrite the base at the target window position with the alternate allele
+    return "".join(seq_list)  # reassemble the mutated sequence back into a string
 
 
 # ---------------------------------------------------------------------------
@@ -472,10 +472,10 @@ class ModelHub:
         device : torch.device
             CPU or CUDA device for inference.
         """
-        self.device = device
-        self.tokenizer = BertTokenizer.from_pretrained(transformer_path, do_lower_case=False)
-        self.transformer = BertModel.from_pretrained(transformer_path).to(device).eval()
-        self.bridge_cache: Dict[str, BRIDGE] = {}
+        self.device = device  # remember the target device for tensors/models loaded through this hub
+        self.tokenizer = BertTokenizer.from_pretrained(transformer_path, do_lower_case=False)  # load the k-mer tokenizer once, case-sensitive (nucleotide tokens are uppercase)
+        self.transformer = BertModel.from_pretrained(transformer_path).to(device).eval()  # load the pretrained Transformer encoder, move to device, and fix it in inference mode
+        self.bridge_cache: Dict[str, BRIDGE] = {}  # lazily-populated cache of loaded BRIDGE models, keyed by checkpoint filename stem
 
     def load_bridge(self, model_dir: Path, filename_stem: str) -> Optional[BRIDGE]:
         """Load (or reuse cached) BRIDGE checkpoint: `<model_dir>/<filename_stem>.pth`.
@@ -492,16 +492,16 @@ class ModelHub:
         Optional[BRIDGE]
             Loaded `BRIDGE` model in `.eval()` mode, or None if the file does not exist.
         """
-        if filename_stem in self.bridge_cache:
-            return self.bridge_cache[filename_stem]
+        if filename_stem in self.bridge_cache:  # avoid reloading a checkpoint already read from disk
+            return self.bridge_cache[filename_stem]  # return the previously cached model instance
 
-        model_file = model_dir / f"{filename_stem}.pth"
-        if not model_file.exists():
-            logging.warning("Model not found for %s → skip", filename_stem)
-            return None
+        model_file = model_dir / f"{filename_stem}.pth"  # expected checkpoint path for this experiment/model name
+        if not model_file.exists():  # nothing to load for this stem
+            logging.warning("Model not found for %s → skip", filename_stem)  # surface the miss so batch scoring can skip it visibly
+            return None  # signal to the caller that this model is unavailable
 
-        model = BRIDGE().to(self.device)
-        model.load_state_dict(torch.load(model_file, map_location=self.device))
-        model.eval()
-        self.bridge_cache[filename_stem] = model
-        return model
+        model = BRIDGE().to(self.device)  # instantiate a fresh BRIDGE model on the target device
+        model.load_state_dict(torch.load(model_file, map_location=self.device))  # load the trained weights from the checkpoint file
+        model.eval()  # fix the model in inference mode (disables dropout, etc.)
+        self.bridge_cache[filename_stem] = model  # cache the loaded model so subsequent calls skip the disk read
+        return model  # ready-to-use BRIDGE model for this experiment/model name

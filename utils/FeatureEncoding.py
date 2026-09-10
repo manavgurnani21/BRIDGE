@@ -138,8 +138,8 @@ Notes and caveats
 
 """
 
-import numpy as np
-import collections
+import numpy as np  # array math for feature matrices
+import collections  # Counter used to tally k-mer occurrences
 
 def get_1_trids():
     """
@@ -151,19 +151,19 @@ def get_1_trids():
         Mapping from 1-mer string to integer index (size = 4).
         Example: {'A': 0, 'C': 1, 'G': 2, 'U': 3} (exact ordering depends on generation logic).
     """
-    nucle_com = []
-    chars = ['A', 'C', 'G', 'U']
-    base = len(chars)
-    end = len(chars) ** 1
+    nucle_com = []  # accumulates all 1-mer strings
+    chars = ['A', 'C', 'G', 'U']  # RNA alphabet
+    base = len(chars)  # radix for the positional-numeral-system enumeration below (4)
+    end = len(chars) ** 1  # total number of 1-mers (4)
 
     # Enumerate all length-1 combinations in a deterministic order
     for i in range(0, end):
-        n = i
-        ch0 = chars[n % base]
-        nucle_com.append(ch0)
+        n = i  # working copy of the index to peel digits off
+        ch0 = chars[n % base]  # single digit in base-4 maps directly to a nucleotide
+        nucle_com.append(ch0)  # record this 1-mer
 
-    word_index = dict((w, i) for i, w in enumerate(nucle_com))
-    return word_index
+    word_index = dict((w, i) for i, w in enumerate(nucle_com))  # k-mer string -> integer index
+    return word_index  # e.g. {'A': 0, 'C': 1, 'G': 2, 'U': 3}
 
 
 def get_2_trids():
@@ -175,21 +175,21 @@ def get_2_trids():
     dict[str, int]
         Mapping from 2-mer string to integer index (size = 4^2 = 16).
     """
-    nucle_com = []
-    chars = ['A', 'C', 'G', 'U']
-    base = len(chars)
-    end = len(chars) ** 2
+    nucle_com = []  # accumulates all 2-mer strings
+    chars = ['A', 'C', 'G', 'U']  # RNA alphabet
+    base = len(chars)  # radix for the positional-numeral-system enumeration below (4)
+    end = len(chars) ** 2  # total number of 2-mers (16)
 
     # Enumerate all length-2 combinations in a deterministic order
     for i in range(0, end):
-        n = i
-        ch0 = chars[n % base]
-        n = n // base
-        ch1 = chars[n % base]
-        nucle_com.append(ch0 + ch1)
+        n = i  # working copy of the index to peel digits off
+        ch0 = chars[n % base]  # least-significant base-4 digit -> first nucleotide
+        n = n // base  # shift to the next digit
+        ch1 = chars[n % base]  # next base-4 digit -> second nucleotide
+        nucle_com.append(ch0 + ch1)  # record this 2-mer
 
-    word_index = dict((w, i) for i, w in enumerate(nucle_com))
-    return word_index
+    word_index = dict((w, i) for i, w in enumerate(nucle_com))  # k-mer string -> integer index
+    return word_index  # size-16 mapping covering all 2-mers
 
 
 def get_3_trids():
@@ -201,23 +201,23 @@ def get_3_trids():
     dict[str, int]
         Mapping from 3-mer string to integer index (size = 4^3 = 64).
     """
-    nucle_com = []
-    chars = ['A', 'C', 'G', 'U']
-    base = len(chars)
-    end = len(chars) ** 3
+    nucle_com = []  # accumulates all 3-mer strings
+    chars = ['A', 'C', 'G', 'U']  # RNA alphabet
+    base = len(chars)  # radix for the positional-numeral-system enumeration below (4)
+    end = len(chars) ** 3  # total number of 3-mers (64)
 
     # Enumerate all length-3 combinations in a deterministic order
     for i in range(0, end):
-        n = i
-        ch0 = chars[n % base]
-        n = n // base
-        ch1 = chars[n % base]
-        n = n // base
-        ch2 = chars[n % base]
-        nucle_com.append(ch0 + ch1 + ch2)
+        n = i  # working copy of the index to peel digits off
+        ch0 = chars[n % base]  # least-significant base-4 digit -> first nucleotide
+        n = n // base  # shift to the next digit
+        ch1 = chars[n % base]  # next base-4 digit -> second nucleotide
+        n = n // base  # shift to the next digit
+        ch2 = chars[n % base]  # most-significant base-4 digit -> third nucleotide
+        nucle_com.append(ch0 + ch1 + ch2)  # record this 3-mer
 
-    word_index = dict((w, i) for i, w in enumerate(nucle_com))
-    return word_index
+    word_index = dict((w, i) for i, w in enumerate(nucle_com))  # k-mer string -> integer index
+    return word_index  # size-64 mapping covering all 3-mers
 
 
 def frequency(seq, kmer, coden_dict):
@@ -241,18 +241,18 @@ def frequency(seq, kmer, coden_dict):
     dict[int, int]
         Dictionary mapping k-mer index to its occurrence count in the sequence.
     """
-    Value = []
-    k = kmer
+    Value = []  # collects the integer index of every k-mer window observed in the sequence
+    k = kmer  # local alias for window size
 
     # Slide a window of size k across the sequence (stride = 1)
     for i in range(len(seq) - int(k) + 1):
-        kmer = seq[i:i + k]
-        kmer_value = coden_dict[kmer.replace('T', 'U')]
-        Value.append(kmer_value)
+        kmer = seq[i:i + k]  # extract the window starting at position i (shadows the `kmer` parameter)
+        kmer_value = coden_dict[kmer.replace('T', 'U')]  # normalize DNA T->U, then look up its integer index
+        Value.append(kmer_value)  # record this occurrence
 
     # Count occurrences of each k-mer index
-    freq_dict = dict(collections.Counter(Value))
-    return freq_dict
+    freq_dict = dict(collections.Counter(Value))  # tally how many times each k-mer index occurred
+    return freq_dict  # sparse index -> count mapping
 
 
 def coden(seq, kmer, tris):
@@ -284,23 +284,23 @@ def coden(seq, kmer, tris):
         Array of shape (101, len(tris)) containing position-wise frequency features.
         Rows beyond the valid k-mer start positions remain all zeros.
     """
-    coden_dict = tris
+    coden_dict = tris  # local alias for the k-mer -> index mapping
 
     # Pre-compute global k-mer counts across the entire sequence
-    freq_dict = frequency(seq, kmer, coden_dict)
+    freq_dict = frequency(seq, kmer, coden_dict)  # index -> count over the whole sequence
 
     # Fixed-length representation: always allocate 101 rows
-    vectors = np.zeros((101, len(coden_dict.keys())))
+    vectors = np.zeros((101, len(coden_dict.keys())))  # (101, |vocab|) output matrix, zero-initialized
 
     # Slide k-mer window across the sequence and fill position-wise features
     for i in range(len(seq) - int(kmer) + 1):
         # Convert DNA 'T' to RNA 'U' to match the k-mer vocabulary
-        value = freq_dict[coden_dict[seq[i:i+kmer].replace('T', 'U')]]
+        value = freq_dict[coden_dict[seq[i:i+kmer].replace('T', 'U')]]  # global count for the k-mer starting at position i
 
         # Place the normalized global count at the corresponding position and k-mer column
-        vectors[i][coden_dict[seq[i:i+kmer].replace('T', 'U')]] = value/100
+        vectors[i][coden_dict[seq[i:i+kmer].replace('T', 'U')]] = value/100  # write normalized count into row i, column = k-mer index
 
-    return vectors
+    return vectors  # (101, |vocab|) position-wise k-mer feature matrix
 
 
 def processFastaFile(seq):
@@ -335,20 +335,20 @@ def processFastaFile(seq):
         'U': [0, 0, 1],
         'C': [0, 1, 0],
         'G': [1, 0, 0]
-    }
+    }  # fixed one-hot-like encoding per nucleotide (see docstring for the design)
 
-    seqLength = len(seq)
-    sequence_vector = np.zeros([101, 3])
+    seqLength = len(seq)  # number of real (non-padded) positions
+    sequence_vector = np.zeros([101, 3])  # (101, 3) output, zero-initialized (also the default for padded rows before the pad flag is set)
 
     # Encode observed positions
     for i in range(0, seqLength):
-        sequence_vector[i, 0:3] = phys_dic[seq[i]]
+        sequence_vector[i, 0:3] = phys_dic[seq[i]]  # copy this position's 3-dim code into the output row
 
     # Mark padded positions explicitly
     for i in range(seqLength, 101):
-        sequence_vector[i, -1] = 1
+        sequence_vector[i, -1] = 1  # set the padding-indicator channel for rows beyond the real sequence
 
-    return sequence_vector
+    return sequence_vector  # (101, 3) base encoding + padding flag
 
 
 def dpcp(seq):
@@ -388,15 +388,15 @@ def dpcp(seq):
         'GG': [0.11, -1.46, 3.09, 1, 9.9, 31, -14.4, -7.6, -19.2, -2.11, 0.34 ]
     }
 
-    seqLength = len(seq)
-    sequence_vector = np.zeros([101, 11])
-    k = 2
+    seqLength = len(seq)  # number of real (non-padded) positions
+    sequence_vector = np.zeros([101, 11])  # (101, 11) output, zero-initialized (trailing rows without a full dinucleotide stay zero)
+    k = 2  # dinucleotide window size
 
     # Encode dinucleotide properties for valid positions
     for i in range(0, seqLength - 1):
-        sequence_vector[i, 0:11] = phys_dic[seq[i:i + k]]
+        sequence_vector[i, 0:11] = phys_dic[seq[i:i + k]]  # look up the 11-dim property vector for the dinucleotide starting at i
 
-    return sequence_vector
+    return sequence_vector  # (101, 11) DPCP feature matrix
 
 
 def nd(seq, seq_length):
@@ -418,20 +418,20 @@ def nd(seq, seq_length):
     np.ndarray
         Array of length `seq_length` containing per-position ND values.
     """
-    seq = seq.strip()
-    nd_list = [None] * seq_length
+    seq = seq.strip()  # remove surrounding whitespace/newline
+    nd_list = [None] * seq_length  # per-position ND value, filled below (stays None if the char isn't A/U/C/G)
 
     for j in range(seq_length):
         if seq[j] == 'A':
-            nd_list[j] = round(seq[0:j + 1].count('A') / (j + 1), 3)
+            nd_list[j] = round(seq[0:j + 1].count('A') / (j + 1), 3)  # fraction of A's in the prefix ending at j
         elif seq[j] == 'U':
-            nd_list[j] = round(seq[0:j + 1].count('U') / (j + 1), 3)
+            nd_list[j] = round(seq[0:j + 1].count('U') / (j + 1), 3)  # fraction of U's in the prefix ending at j
         elif seq[j] == 'C':
-            nd_list[j] = round(seq[0:j + 1].count('C') / (j + 1), 3)
+            nd_list[j] = round(seq[0:j + 1].count('C') / (j + 1), 3)  # fraction of C's in the prefix ending at j
         elif seq[j] == 'G':
-            nd_list[j] = round(seq[0:j + 1].count('G') / (j + 1), 3)
+            nd_list[j] = round(seq[0:j + 1].count('G') / (j + 1), 3)  # fraction of G's in the prefix ending at j
 
-    return np.array(nd_list)
+    return np.array(nd_list)  # (seq_length,) running nucleotide-density values
 
 
 def dealwithdata(protein):
@@ -470,24 +470,24 @@ def dealwithdata(protein):
         Feature tensor of shape (N, 101, F) for all sequences from pos and neg files.
         The concatenation order is: [base+pad, ND, DPCP, kmer(1), kmer(2), kmer(3)].
     """
-    seq_length = 101
-    tris1 = get_1_trids()
-    tris2 = get_2_trids()
-    tris3 = get_3_trids()
-    dataX = []
+    seq_length = 101  # fixed per-sequence length used throughout the encoders
+    tris1 = get_1_trids()  # 1-mer vocabulary (4 entries)
+    tris2 = get_2_trids()  # 2-mer vocabulary (16 entries)
+    tris3 = get_3_trids()  # 3-mer vocabulary (64 entries)
+    dataX = []  # collects one (101, 99) feature matrix per sequence
 
     # Process positive and negative sets sequentially
     for label in ['pos', 'neg']:
-        fasta_path = f'./dataset/{protein}_{label}.fa'
+        fasta_path = f'./dataset/{protein}_{label}.fa'  # path to this label's FASTA-like file
         with open(fasta_path, 'r') as f:
-            lines = f.readlines()
+            lines = f.readlines()  # read every line into memory (small files expected)
 
         # Assumes 3 lines per record: header / sequence / (unused)
         for i in range(0, len(lines), 3):
-            seq_line = lines[i + 1].strip()
+            seq_line = lines[i + 1].strip()  # the sequence line of this 3-line record
 
             # Normalize to RNA alphabet
-            seq_line = seq_line.replace('T', 'U').replace('N', 'A')
+            seq_line = seq_line.replace('T', 'U').replace('N', 'A')  # DNA T->U, ambiguous N treated as A
 
             # Base encoding with padding indicator: (101, 3)
             probMatr = processFastaFile(seq_line)
@@ -512,11 +512,11 @@ def dealwithdata(protein):
 
             # Final concatenated feature matrix: (101, 15+84=99)
             Feature_Encoding = np.column_stack((probMatr_NDPCP, Kmer))
-            dataX.append(Feature_Encoding)
+            dataX.append(Feature_Encoding)  # add this sequence's feature matrix to the batch
 
-    dataX = np.stack(dataX, axis=0)
-    print(f"[INFO] Encoded {dataX.shape[0]} sequences for {protein}, shape: {dataX.shape}")
-    return dataX
+    dataX = np.stack(dataX, axis=0)  # (N, 101, 99) stack all sequences (pos then neg) into one batch tensor
+    print(f"[INFO] Encoded {dataX.shape[0]} sequences for {protein}, shape: {dataX.shape}")  # progress/debug log
+    return dataX  # (N, 101, 99) batch feature tensor
 
 
 def dealwithdata2(seq):
@@ -537,16 +537,16 @@ def dealwithdata2(seq):
     np.ndarray
         Feature tensor of shape (1, 101, F) where F matches `dealwithdata` output.
     """
-    line = seq
-    seq_length = 101
-    tris1 = get_1_trids()
-    tris2 = get_2_trids()
-    tris3 = get_3_trids()
-    dataX = []
+    line = seq  # local alias for the input sequence
+    seq_length = 101  # fixed per-sequence length used throughout the encoders
+    tris1 = get_1_trids()  # 1-mer vocabulary (4 entries)
+    tris2 = get_2_trids()  # 2-mer vocabulary (16 entries)
+    tris3 = get_3_trids()  # 3-mer vocabulary (64 entries)
+    dataX = []  # will hold the single feature matrix, wrapped to form a batch of size 1
     dataY = []  # Unused placeholder (kept to avoid changing original structure)
 
     # Normalize to RNA alphabet and remove surrounding whitespace
-    line = line.replace('T', 'U').replace('N', 'A').strip()
+    line = line.replace('T', 'U').replace('N', 'A').strip()  # DNA T->U, ambiguous N treated as A, strip whitespace
 
     # Base encoding + padding: (101, 3)
     probMatr = processFastaFile(line)
@@ -573,7 +573,7 @@ def dealwithdata2(seq):
     Feature_Encoding = np.column_stack((probMatr_NDPCP, Kmer))
 
     # Keep output batch dimension = 1
-    dataX.append(Feature_Encoding.tolist())
-    dataX = np.array(dataX)
+    dataX.append(Feature_Encoding.tolist())  # convert to nested list before wrapping in the batch array
+    dataX = np.array(dataX)  # (1, 101, 99) single-sequence batch
 
-    return dataX
+    return dataX  # (1, 101, 99) feature tensor for this one sequence

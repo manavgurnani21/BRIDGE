@@ -165,14 +165,14 @@ behavior, add a final `return name`.
 
 """
 
-import numpy as np
-import pandas as pd
-import h5py
-import torch
-from torch.utils.data import Dataset
-from torch.optim.lr_scheduler import _LRScheduler
-from torch.optim.lr_scheduler import ReduceLROnPlateau
-from typing import Any, Dict, List, Sequence, Tuple
+import numpy as np  # array ops for one-hot encoding, splitting, and CSV target arrays
+import pandas as pd  # TSV/CSV reading for read_csv / read_csv_with_name
+import h5py  # HDF5 reader (used by the commented-out read_h5 helper)
+import torch  # tensors and the LR-scheduler base classes below
+from torch.utils.data import Dataset  # base class for the dataset wrappers
+from torch.optim.lr_scheduler import _LRScheduler  # base class for GradualWarmupScheduler
+from torch.optim.lr_scheduler import ReduceLROnPlateau  # special-cased after_scheduler type
+from typing import Any, Dict, List, Sequence, Tuple  # type hints for BaseRBPDataset
 
 def seq2kmer(seq, k):
     """
@@ -189,14 +189,14 @@ def seq2kmer(seq, k):
             List of k-mer substrings of length `k`.
             Example: seq="ACGT", k=2 -> ["AC", "CG", "GT"].
     """
-    seq_length = len(seq)
-    sub_seq = 'ATCG'
-    import random
-    rand1 = random.randint(0, 3)  # [0,3]
-    rand2 = random.randint(0, 3)
+    seq_length = len(seq)  # total sequence length, used to bound the sliding window
+    sub_seq = 'ATCG'  # alphabet used to pick a random flank base (unused, see below)
+    import random  # local import, only needed for the (unused) random flank logic
+    rand1 = random.randint(0, 3)  # [0,3]  # randomly chosen index into sub_seq, but never applied to `seq`
+    rand2 = random.randint(0, 3)  # randomly chosen index into sub_seq, but never applied to `seq`
     # seq = sub_seq[rand1] + seq + sub_seq[rand2]
-    kmer = [seq[x:x + k] for x in range(seq_length - k + 1)]
-    return kmer
+    kmer = [seq[x:x + k] for x in range(seq_length - k + 1)]  # slide a length-k window across the sequence with stride 1
+    return kmer  # list of overlapping k-mer substrings
 
 
 def split_dataset(data1, data2, data3, data_motif, data_plfold, targets, valid_frac=0.15, test_frac=0.15):
@@ -232,53 +232,53 @@ def split_dataset(data1, data2, data3, data_motif, data_plfold, targets, valid_f
           split is fully reproducible given a fixed RNG seed.
         - The returned order concatenates positives first, then negatives (as implemented).
     """
-    ind0 = np.where(targets < 0.5)[0]
-    ind1 = np.where(targets >= 0.5)[0]
+    ind0 = np.where(targets < 0.5)[0]  # indices of the negative class
+    ind1 = np.where(targets >= 0.5)[0]  # indices of the positive class
 
-    n_test_neg = int(len(ind0) * test_frac)
-    n_test_pos = int(len(ind1) * test_frac)
-    n_val_neg = int(len(ind0) * valid_frac)
-    n_val_pos = int(len(ind1) * valid_frac)
+    n_test_neg = int(len(ind0) * test_frac)  # number of negatives held out for test
+    n_test_pos = int(len(ind1) * test_frac)  # number of positives held out for test
+    n_val_neg = int(len(ind0) * valid_frac)  # number of negatives held out for validation
+    n_val_pos = int(len(ind1) * valid_frac)  # number of positives held out for validation
 
-    shuf_neg = np.random.permutation(len(ind0))
-    shuf_pos = np.random.permutation(len(ind1))
+    shuf_neg = np.random.permutation(len(ind0))  # random ordering over negative-class indices (local, 0..len(ind0)-1)
+    shuf_pos = np.random.permutation(len(ind1))  # random ordering over positive-class indices (local, 0..len(ind1)-1)
 
     # Contiguous index ranges within each class: test | valid | train
-    test_pos = shuf_pos[:n_test_pos]
-    val_pos = shuf_pos[n_test_pos:n_test_pos + n_val_pos]
-    train_pos = shuf_pos[n_test_pos + n_val_pos:]
+    test_pos = shuf_pos[:n_test_pos]  # first slice of shuffled positives -> test
+    val_pos = shuf_pos[n_test_pos:n_test_pos + n_val_pos]  # next slice of shuffled positives -> validation
+    train_pos = shuf_pos[n_test_pos + n_val_pos:]  # remaining shuffled positives -> train
 
-    test_neg = shuf_neg[:n_test_neg]
-    val_neg = shuf_neg[n_test_neg:n_test_neg + n_val_neg]
-    train_neg = shuf_neg[n_test_neg + n_val_neg:]
+    test_neg = shuf_neg[:n_test_neg]  # first slice of shuffled negatives -> test
+    val_neg = shuf_neg[n_test_neg:n_test_neg + n_val_neg]  # next slice of shuffled negatives -> validation
+    train_neg = shuf_neg[n_test_neg + n_val_neg:]  # remaining shuffled negatives -> train
 
-    def _gather(pos_sel, neg_sel):
+    def _gather(pos_sel, neg_sel):  # build one split's modality list from local pos/neg index selections
         return [
-            np.concatenate((data1[ind1[pos_sel]], data1[ind0[neg_sel]])),
-            np.concatenate((data2[ind1[pos_sel]], data2[ind0[neg_sel]])),
-            np.concatenate((data3[ind1[pos_sel]], data3[ind0[neg_sel]])),
-            np.concatenate((data_motif[ind1[pos_sel]], data_motif[ind0[neg_sel]])),
-            np.concatenate((data_plfold[ind1[pos_sel]], data_plfold[ind0[neg_sel]])),
-            np.concatenate((targets[ind1[pos_sel]], targets[ind0[neg_sel]])),
+            np.concatenate((data1[ind1[pos_sel]], data1[ind0[neg_sel]])),  # modality 1: positives then negatives
+            np.concatenate((data2[ind1[pos_sel]], data2[ind0[neg_sel]])),  # modality 2: positives then negatives
+            np.concatenate((data3[ind1[pos_sel]], data3[ind0[neg_sel]])),  # modality 3: positives then negatives
+            np.concatenate((data_motif[ind1[pos_sel]], data_motif[ind0[neg_sel]])),  # motif modality: positives then negatives
+            np.concatenate((data_plfold[ind1[pos_sel]], data_plfold[ind0[neg_sel]])),  # plfold modality: positives then negatives
+            np.concatenate((targets[ind1[pos_sel]], targets[ind0[neg_sel]])),  # targets: positives then negatives (matches modality order)
         ]
 
-    train = _gather(train_pos, train_neg)
-    valid = _gather(val_pos, val_neg)
-    test = _gather(test_pos, test_neg)
+    train = _gather(train_pos, train_neg)  # assemble the training split
+    valid = _gather(val_pos, val_neg)  # assemble the validation split
+    test = _gather(test_pos, test_neg)  # assemble the (sealed) test split
 
-    return train, valid, test
+    return train, valid, test  # each a 6-element list: [data1, data2, data3, motif, plfold, targets]
 
 
 def param_num(model):
     """
     Print the total/trainable/non-trainable parameter counts of a PyTorch model.
     """
-    num_param0 = sum(p.numel() for p in model.parameters())
-    num_param1 = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    num_param0 = sum(p.numel() for p in model.parameters())  # total element count across all parameters
+    num_param1 = sum(p.numel() for p in model.parameters() if p.requires_grad)  # element count restricted to trainable (requires_grad) parameters
     print("---------------------------------")
     print("Total params:", num_param0)
     print("Trainable params:", num_param1)
-    print("Non-trainable params:", num_param0 - num_param1)
+    print("Non-trainable params:", num_param0 - num_param1)  # frozen parameters, e.g. from a pretrained/frozen backbone
     print("---------------------------------")
 
 
@@ -326,7 +326,7 @@ class BaseRBPDataset(Dataset):
         5
     """
     # Ordered list of field names expected in __getitem__ output
-    modalities: Tuple[str, ...] = ()
+    modalities: Tuple[str, ...] = ()  # overridden by subclasses; defines both required kwargs and __getitem__ output order
 
     def __init__(self, **modal_tensors: torch.Tensor) -> None:
         """
@@ -337,24 +337,24 @@ class BaseRBPDataset(Dataset):
                 Keyword tensors whose keys must match `self.modalities`.
                 Each tensor must have shape (N, ...), and all tensors must share the same N.
         """
-        missing = set(self.modalities) - modal_tensors.keys()
-        if missing:
-            raise ValueError(f"Missing modalities: {missing}")
+        missing = set(self.modalities) - modal_tensors.keys()  # modality names declared by the subclass but not passed in
+        if missing:  # constructor was called without a required modality tensor
+            raise ValueError(f"Missing modalities: {missing}")  # fail fast rather than later at __getitem__ time
 
         # save tensors as attributes, e.g. self.embeddings, self.attn …
-        for k, v in modal_tensors.items():
+        for k, v in modal_tensors.items():  # store every provided tensor, not just the ones in `modalities`
             setattr(self, f"{k}s", v)   # pluralised as attribute
 
-        self._length = next(iter(modal_tensors.values())).shape[0]
+        self._length = next(iter(modal_tensors.values())).shape[0]  # dataset length = first dimension of any one modality tensor
 
     # --------------------------------------------------------------
     # PyTorch Dataset API
     # --------------------------------------------------------------
     def __len__(self) -> int:
-        return self._length
+        return self._length  # number of samples N
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, ...]:
-        return tuple(getattr(self, f"{m}s")[idx] for m in self.modalities)
+        return tuple(getattr(self, f"{m}s")[idx] for m in self.modalities)  # look up index idx from each modality's pluralized attribute, in declared order
 
 
 # ------------------------------------------------------------------
@@ -364,14 +364,14 @@ class RBPTrainDataset(BaseRBPDataset):
     """
     Dataset for training/validation that includes labels.
     """
-    modalities = ("embedding", "attn", "struct", "motif", "plfold", "label")
+    modalities = ("embedding", "attn", "struct", "motif", "plfold", "label")  # 6-tuple order matching train/validate in train_loop.py
 
 
 class RBPInferDataset(BaseRBPDataset):
     """
     Dataset for inference without labels.
     """
-    modalities = ("embedding", "attn", "struct", "motif", "biochem")
+    modalities = ("embedding", "attn", "struct", "motif", "biochem")  # 5-tuple order matching validate2/validate_without_sigmoid
 
 
 class myDataset(Dataset):
@@ -401,25 +401,25 @@ class myDataset(Dataset):
         - Prefer `RBPTrainDataset` for clearer modality control and validation.
     """
     def __init__(self, bert_embedding, attn, structure, motif, plfold, label):
-        self.embedding = bert_embedding
-        self.attn = attn
-        self.structs = structure
-        self.motifs = motif
-        self.plfolds = plfold
-        self.label = label
+        self.embedding = bert_embedding  # store the full embedding tensor/array (indexed lazily in __getitem__)
+        self.attn = attn  # store the full attention tensor/array
+        self.structs = structure  # store the full structure tensor/array
+        self.motifs = motif  # store the full motif tensor/array
+        self.plfolds = plfold  # store the full plfold/biochemical tensor/array
+        self.label = label  # store the full label tensor/array
 
     def __getitem__(self, index):
-        embedding = self.embedding[index]
-        attn = self.attn[index]
-        struct = self.structs[index]
-        motif = self.motifs[index]
-        plfold = self.plfolds[index]
-        label = self.label[index]
+        embedding = self.embedding[index]  # this sample's embedding
+        attn = self.attn[index]  # this sample's attention matrix
+        struct = self.structs[index]  # this sample's structure features
+        motif = self.motifs[index]  # this sample's motif features
+        plfold = self.plfolds[index]  # this sample's plfold/biochemical features
+        label = self.label[index]  # this sample's label
 
-        return embedding, attn, struct, motif, plfold, label
+        return embedding, attn, struct, motif, plfold, label  # matches train_loop.py's expected 6-tuple
 
     def __len__(self):
-        return len(self.label)
+        return len(self.label)  # dataset length = number of labels
 
 
 class myDataset2(Dataset):
@@ -437,23 +437,23 @@ class myDataset2(Dataset):
             (embedding, attn, struct, motif, phys_chem) for the given index.
     """
     def __init__(self, bert_embedding, attn, structure, motif, phys_chem):
-        self.embedding = bert_embedding
-        self.attn = attn
-        self.structs = structure
-        self.motifs = motif
-        self.phys_chems = phys_chem
+        self.embedding = bert_embedding  # store the full embedding tensor/array
+        self.attn = attn  # store the full attention tensor/array
+        self.structs = structure  # store the full structure tensor/array
+        self.motifs = motif  # store the full motif tensor/array
+        self.phys_chems = phys_chem  # store the full biochemical/physicochemical feature tensor/array
 
     def __getitem__(self, index):
-        embedding = self.embedding[index]
-        attn = self.attn[index]
-        struct = self.structs[index]
-        motif = self.motifs[index]
-        phys_chem = self.phys_chems[index]
+        embedding = self.embedding[index]  # this sample's embedding
+        attn = self.attn[index]  # this sample's attention matrix
+        struct = self.structs[index]  # this sample's structure features
+        motif = self.motifs[index]  # this sample's motif features
+        phys_chem = self.phys_chems[index]  # this sample's biochemical/physicochemical features
 
-        return embedding, attn, struct, motif, phys_chem
+        return embedding, attn, struct, motif, phys_chem  # matches validate2/validate_without_sigmoid's expected 5-tuple (no label)
 
     def __len__(self):
-        return len(self.embedding)
+        return len(self.embedding)  # dataset length = number of embeddings
 
 def read_csv(path):
     """
@@ -482,20 +482,20 @@ def read_csv(path):
         - Rows with df[0] == "Type" are dropped (header-like row).
         - No validation of sequence alphabet or structure length is performed here.
     """
-    df = pd.read_csv(path, sep='\t', header=None)
-    df = df.loc[df[0] != "Type"]
+    df = pd.read_csv(path, sep='\t', header=None)  # read the TSV without treating any row as a header
+    df = df.loc[df[0] != "Type"]  # drop the literal header-like row where column 0 == "Type"
 
-    Type = 0
-    loc = 1
-    Seq = 2
-    Str = 3
-    Score = 4
-    label = 5
+    Type = 0  # column index: record type (used only to identify/drop the header row)
+    loc = 1  # column index: record identifier/location (unused in this function's return)
+    Seq = 2  # column index: sequence string
+    Str = 3  # column index: structure string
+    Score = 4  # column index: score (unused in this function's return)
+    label = 5  # column index: label/target
 
-    rnac_set = df[Type].to_numpy()
-    sequences = df[Seq].to_numpy()
-    structs = df[Str].to_numpy()
-    targets = df[label].to_numpy().astype(np.float32).reshape(-1, 1)
+    rnac_set = df[Type].to_numpy()  # extracted but not returned or used further
+    sequences = df[Seq].to_numpy()  # sequence strings as an object array
+    structs = df[Str].to_numpy()  # structure strings as an object array
+    targets = df[label].to_numpy().astype(np.float32).reshape(-1, 1)  # labels cast to float32 and shaped (N, 1)
     return sequences, structs, targets
 
 
@@ -525,20 +525,20 @@ def read_csv_with_name(path):
                 Float32 label array, shape (N, 1).
     """
     # load sequences
-    df = pd.read_csv(path, sep='\t', header=None)
-    df = df.loc[df[0] != "Type"]
+    df = pd.read_csv(path, sep='\t', header=None)  # read the TSV without treating any row as a header
+    df = df.loc[df[0] != "Type"]  # drop the literal header-like row where column 0 == "Type"
 
-    Type = 0
-    loc = 1
-    Seq = 2
-    Str = 3
-    Score = 4
-    label = 5
+    Type = 0  # column index: record type (used only to identify/drop the header row)
+    loc = 1  # column index: record identifier/location
+    Seq = 2  # column index: sequence string
+    Str = 3  # column index: structure string
+    Score = 4  # column index: score (unused in this function's return)
+    label = 5  # column index: label/target
 
-    name = df[loc].to_numpy()
-    sequences = df[Seq].to_numpy()
-    structs = df[Str].to_numpy()
-    targets = df[label].to_numpy().astype(np.float32).reshape(-1, 1)
+    name = df[loc].to_numpy()  # record identifiers, in the same row order as sequences/structs/targets
+    sequences = df[Seq].to_numpy()  # sequence strings as an object array
+    structs = df[Str].to_numpy()  # structure strings as an object array
+    targets = df[label].to_numpy().astype(np.float32).reshape(-1, 1)  # labels cast to float32 and shaped (N, 1)
     return name, sequences, structs, targets
 
 
@@ -577,34 +577,34 @@ def convert_one_hot(sequence, max_length=None):
         - Non-ACGU/T characters are left as all-zeros at that position.
         - If you need explicit handling of 'N', add it upstream.
     """
-    one_hot_seq = []
-    for seq in sequence:
-        seq = seq.upper()
-        seq_length = len(seq)
-        one_hot = np.zeros((4,seq_length))
-        index = [j for j in range(seq_length) if seq[j] == 'A']
-        one_hot[0,index] = 1
-        index = [j for j in range(seq_length) if seq[j] == 'C']
-        one_hot[1,index] = 1
-        index = [j for j in range(seq_length) if seq[j] == 'G']
-        one_hot[2,index] = 1
-        index = [j for j in range(seq_length) if (seq[j] == 'U') | (seq[j] == 'T')]
-        one_hot[3,index] = 1
+    one_hot_seq = []  # accumulates one one-hot matrix per input sequence
+    for seq in sequence:  # process each sequence independently
+        seq = seq.upper()  # normalize case so 'a'/'A' etc. match consistently
+        seq_length = len(seq)  # this sequence's length, before any padding
+        one_hot = np.zeros((4,seq_length))  # (channel, position) matrix, starts all-zero (unknown bases stay zero)
+        index = [j for j in range(seq_length) if seq[j] == 'A']  # positions where the base is A
+        one_hot[0,index] = 1  # set channel 0 (A) to 1 at those positions
+        index = [j for j in range(seq_length) if seq[j] == 'C']  # positions where the base is C
+        one_hot[1,index] = 1  # set channel 1 (C) to 1 at those positions
+        index = [j for j in range(seq_length) if seq[j] == 'G']  # positions where the base is G
+        one_hot[2,index] = 1  # set channel 2 (G) to 1 at those positions
+        index = [j for j in range(seq_length) if (seq[j] == 'U') | (seq[j] == 'T')]  # positions where the base is U or T (RNA/DNA agnostic)
+        one_hot[3,index] = 1  # set channel 3 (U/T) to 1 at those positions
 
         # handle boundary conditions with zero-padding
-        if max_length:
-            offset1 = int((max_length - seq_length)/2)
-            offset2 = max_length - seq_length - offset1
+        if max_length:  # caller wants a fixed-length output
+            offset1 = int((max_length - seq_length)/2)  # left-padding amount (centers the sequence)
+            offset2 = max_length - seq_length - offset1  # right-padding amount (absorbs any rounding remainder)
 
-            if offset1:
-                one_hot = np.hstack([np.zeros((4,offset1)), one_hot])
-            if offset2:
-                one_hot = np.hstack([one_hot, np.zeros((4,offset2))])
+            if offset1:  # only pad if there's a nonzero left offset
+                one_hot = np.hstack([np.zeros((4,offset1)), one_hot])  # prepend zero columns on the left
+            if offset2:  # only pad if there's a nonzero right offset
+                one_hot = np.hstack([one_hot, np.zeros((4,offset2))])  # append zero columns on the right
 
-        one_hot_seq.append(one_hot)
+        one_hot_seq.append(one_hot)  # collect this sequence's (padded) one-hot matrix
 
     # convert to numpy array
-    one_hot_seq = np.array(one_hot_seq)
+    one_hot_seq = np.array(one_hot_seq)  # stack into (N, 4, L) or (N, 4, max_length)
     return one_hot_seq
 
 
@@ -632,38 +632,38 @@ def convert_one_hot2(sequence, attention, max_length=None):
         - This function assumes `attention` is compatible with each sequence length.
           If sequences have different lengths, a single shared attention vector may not work.
     """
-    one_hot_seq = []
-    for seq in sequence:
-        seq = seq.upper()
-        seq_length = len(seq)
-        one_hot = np.zeros((4,seq_length))
-        index = [j for j in range(seq_length) if seq[j] == 'A']
+    one_hot_seq = []  # accumulates one attention-weighted one-hot matrix per input sequence
+    for seq in sequence:  # process each sequence independently
+        seq = seq.upper()  # normalize case so 'a'/'A' etc. match consistently
+        seq_length = len(seq)  # this sequence's length, before any padding
+        one_hot = np.zeros((4,seq_length))  # (channel, position) matrix, starts all-zero (unknown bases stay zero)
+        index = [j for j in range(seq_length) if seq[j] == 'A']  # positions where the base is A
+        for i in index:  # write per-position attention weight instead of a flat 1.0
+            one_hot[0,i] = attention[i]  # channel 0 (A) gets this position's attention weight
+        index = [j for j in range(seq_length) if seq[j] == 'C']  # positions where the base is C
         for i in index:
-            one_hot[0,i] = attention[i]
-        index = [j for j in range(seq_length) if seq[j] == 'C']
+            one_hot[1,i] = attention[i]  # channel 1 (C) gets this position's attention weight
+        index = [j for j in range(seq_length) if seq[j] == 'G']  # positions where the base is G
         for i in index:
-            one_hot[1,i] = attention[i]
-        index = [j for j in range(seq_length) if seq[j] == 'G']
+            one_hot[2,i] = attention[i]  # channel 2 (G) gets this position's attention weight
+        index = [j for j in range(seq_length) if (seq[j] == 'U') | (seq[j] == 'T')]  # positions where the base is U or T
         for i in index:
-            one_hot[2,i] = attention[i]
-        index = [j for j in range(seq_length) if (seq[j] == 'U') | (seq[j] == 'T')]
-        for i in index:
-            one_hot[3,i] = attention[i]
+            one_hot[3,i] = attention[i]  # channel 3 (U/T) gets this position's attention weight
 
         # handle boundary conditions with zero-padding
-        if max_length:
-            offset1 = int((max_length - seq_length)/2)
-            offset2 = max_length - seq_length - offset1
+        if max_length:  # caller wants a fixed-length output
+            offset1 = int((max_length - seq_length)/2)  # left-padding amount (centers the sequence)
+            offset2 = max_length - seq_length - offset1  # right-padding amount (absorbs any rounding remainder)
 
-            if offset1:
-                one_hot = np.hstack([np.zeros((4,offset1)), one_hot])
-            if offset2:
-                one_hot = np.hstack([one_hot, np.zeros((4,offset2))])
+            if offset1:  # only pad if there's a nonzero left offset
+                one_hot = np.hstack([np.zeros((4,offset1)), one_hot])  # prepend zero columns on the left
+            if offset2:  # only pad if there's a nonzero right offset
+                one_hot = np.hstack([one_hot, np.zeros((4,offset2))])  # append zero columns on the right
 
-        one_hot_seq.append(one_hot)
+        one_hot_seq.append(one_hot)  # collect this sequence's (padded) attention-weighted matrix
 
     # convert to numpy array
-    one_hot_seq = np.array(one_hot_seq)
+    one_hot_seq = np.array(one_hot_seq)  # stack into (N, 4, L) or (N, 4, max_length)
 
     return one_hot_seq
 
@@ -713,13 +713,13 @@ class GradualWarmupScheduler(_LRScheduler):
             ValueError:
                 If `multiplier <= 1.0`.
         """
-        self.multiplier = multiplier
-        if self.multiplier <= 1.:
+        self.multiplier = multiplier  # target LR multiplier reached at the end of warmup
+        if self.multiplier <= 1.:  # a multiplier <= 1 would mean no warmup increase (or a decrease), which isn't supported
             raise ValueError('multiplier should be greater than 1.')
-        self.total_epoch = total_epoch
-        self.after_scheduler = after_scheduler
-        self.finished = False
-        super().__init__(optimizer)
+        self.total_epoch = total_epoch  # number of epochs over which warmup ramps up
+        self.after_scheduler = after_scheduler  # scheduler delegated to once warmup completes
+        self.finished = False  # tracks whether the one-time handoff to after_scheduler has happened
+        super().__init__(optimizer)  # _LRScheduler.__init__ captures base_lrs and calls get_lr() once via step()
 
     def get_lr(self):
         """
@@ -729,16 +729,16 @@ class GradualWarmupScheduler(_LRScheduler):
             List[float]:
                 A list of learning rates, one per parameter group in the wrapped optimizer.
         """
-        if self.last_epoch > self.total_epoch:
-            if self.after_scheduler:
-                if not self.finished:
-                    self.after_scheduler.base_lrs = [base_lr * self.multiplier for base_lr in self.base_lrs]
-                    self.finished = True
-                return self.after_scheduler.get_lr()
-            return [base_lr * self.multiplier for base_lr in self.base_lrs]
+        if self.last_epoch > self.total_epoch:  # warmup period is over
+            if self.after_scheduler:  # a downstream scheduler was provided
+                if not self.finished:  # first time crossing into post-warmup: hand off the scaled base LR once
+                    self.after_scheduler.base_lrs = [base_lr * self.multiplier for base_lr in self.base_lrs]  # seed after_scheduler's base LRs at the warmed-up level
+                    self.finished = True  # ensure this handoff only happens once
+                return self.after_scheduler.get_lr()  # delegate LR computation to the downstream scheduler
+            return [base_lr * self.multiplier for base_lr in self.base_lrs]  # no downstream scheduler: hold at the warmed-up LR indefinitely
 
         return [base_lr * ((self.multiplier - 1.) * self.last_epoch / self.total_epoch + 1.) for base_lr in
-                self.base_lrs]
+                self.base_lrs]  # still warming up: linearly interpolate from base_lr (epoch 0) to base_lr*multiplier (epoch total_epoch)
 
 
     def step_ReduceLROnPlateau(self, metrics, epoch=None):
@@ -760,19 +760,19 @@ class GradualWarmupScheduler(_LRScheduler):
                 - During warmup, it manually sets optimizer.param_groups[*]['lr'].
                 - After warmup, it calls `after_scheduler.step(metrics, epoch - total_epoch)`.
         """
-        if epoch is None:
-            epoch = self.last_epoch + 1
+        if epoch is None:  # caller didn't specify an epoch explicitly
+            epoch = self.last_epoch + 1  # advance from the last recorded epoch
         self.last_epoch = epoch if epoch != 0 else 1  # ReduceLROnPlateau is called at the end of epoch, whereas others are called at beginning
-        if self.last_epoch <= self.total_epoch:
+        if self.last_epoch <= self.total_epoch:  # still within the warmup window
             warmup_lr = [base_lr * ((self.multiplier - 1.) * self.last_epoch / self.total_epoch + 1.) for base_lr in
-                         self.base_lrs]
-            for param_group, lr in zip(self.optimizer.param_groups, warmup_lr):
-                param_group['lr'] = lr
-        else:
-            if epoch is None:
-                self.after_scheduler.step(metrics, None)
+                         self.base_lrs]  # linearly interpolated warmup LR for this epoch, one value per param group
+            for param_group, lr in zip(self.optimizer.param_groups, warmup_lr):  # manually push the LR into the optimizer
+                param_group['lr'] = lr  # ReduceLROnPlateau doesn't manage LR itself during warmup, so we set it directly
+        else:  # warmup finished: delegate to the wrapped ReduceLROnPlateau scheduler
+            if epoch is None:  # (unreachable given the epoch assignment above, but preserved as written)
+                self.after_scheduler.step(metrics, None)  # let ReduceLROnPlateau manage its own internal epoch counter
             else:
-                self.after_scheduler.step(metrics, epoch - self.total_epoch)
+                self.after_scheduler.step(metrics, epoch - self.total_epoch)  # shift epoch so ReduceLROnPlateau's own counting starts at 0 post-warmup
 
 
     def step(self, epoch=None, metrics=None):
@@ -796,15 +796,15 @@ class GradualWarmupScheduler(_LRScheduler):
             - If `after_scheduler` is ReduceLROnPlateau:
                 - This calls `step_ReduceLROnPlateau(metrics, epoch)`.
         """
-        if type(self.after_scheduler) != ReduceLROnPlateau:
-            if self.finished and self.after_scheduler:
-                if epoch is None:
+        if type(self.after_scheduler) != ReduceLROnPlateau:  # standard (non-plateau) downstream scheduler, or none at all
+            if self.finished and self.after_scheduler:  # warmup already completed and handed off
+                if epoch is None:  # let the downstream scheduler manage its own epoch counter
                     self.after_scheduler.step(None)
-                else:
+                else:  # shift epoch so after_scheduler's own counting starts at 0 post-warmup
                     self.after_scheduler.step(epoch - self.total_epoch)
-            else:
+            else:  # still warming up (or no after_scheduler): use the standard _LRScheduler.step behavior, which calls get_lr()
                 return super(GradualWarmupScheduler, self).step(epoch)
-        else:
+        else:  # ReduceLROnPlateau requires the special metrics-aware step path
             self.step_ReduceLROnPlateau(metrics, epoch)
 
 
@@ -831,8 +831,9 @@ def resolve_dynamic_model_name(name: str) -> str:
           returns None implicitly (because there is no final `return name`).
           If you want identity behavior, add `return name` at the end.
     """
-    for src in ["K562", "HEK293", "HEK293T", "Hela", "H9"]:
-        if name.endswith(src):
-            return name.replace(src, "HepG2")
-    if name.endswith("HepG2"):
-        return name.replace("HepG2", "K562")
+    for src in ["K562", "HEK293", "HEK293T", "Hela", "H9"]:  # check each recognized non-HepG2 cell-line suffix in turn
+        if name.endswith(src):  # this name is for one of those cell lines
+            return name.replace(src, "HepG2")  # swap the suffix so the dynamic model targets HepG2 instead
+    if name.endswith("HepG2"):  # name is already a HepG2 model
+        return name.replace("HepG2", "K562")  # swap to K562 as the alternate dynamic target
+    # NOTE: if no suffix matches, execution falls through and returns None implicitly (see module docstring caveat)

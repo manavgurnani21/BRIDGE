@@ -124,12 +124,12 @@ Usage examples
     fig2 = visualize_track_attribution(track, attrs_seq, sequence="ACGT...", title="Example")
 """
 
-import igrads
-import matplotlib.pyplot as plt
-import logomaker
-import pandas as pd
-import torch.nn.functional as F
-import torch
+import igrads  # third-party integrated-gradients / grad-x-input attribution library
+import matplotlib.pyplot as plt  # figure/axis creation for attribution and track plots
+import logomaker  # renders one-hot/attribution matrices as sequence logos
+import pandas as pd  # DataFrame wrapper required by logomaker's plotting API
+import torch.nn.functional as F  # softmax/sigmoid/one_hot ops
+import torch  # tensors, device/dtype handling, checkpoint loading
 
 
 def attribution(inputs, structure, model, atype='IG', steps=50):
@@ -160,25 +160,25 @@ def attribution(inputs, structure, model, atype='IG', steps=50):
         If `atype` is not supported.
     """
     # Combine sequence and structure inputs (assuming structure is one-hot encoded or of suitable shape)
-    combined_inputs = (inputs, structure)  # This could be adjusted based on model's input format
-    
+    combined_inputs = (inputs, structure)  # This could be adjusted based on model's input format  # pair the two unbatched tensors (overwritten below, so this line's result is unused)
+
     # Add batch dimension
-    combined_inputs = (inputs.unsqueeze(0), structure.unsqueeze(0))
-    
+    combined_inputs = (inputs.unsqueeze(0), structure.unsqueeze(0))  # add a leading batch axis of size 1 to both tensors, since model expects batched input
+
     # Make predictions
-    pred = model(combined_inputs)
+    pred = model(combined_inputs)  # forward pass; used below as the attribution target
 
-    if atype == 'IG':
+    if atype == 'IG':  # Integrated Gradients requested
         # Compute integrated gradients for both sequence and structure inputs
-        return igrads.integrated_gradients(combined_inputs, model, target_mask=pred, steps=steps)
-    elif atype == 'grad_x_input':
+        return igrads.integrated_gradients(combined_inputs, model, target_mask=pred, steps=steps)  # accumulate gradients along a path from baseline to input, using `pred` as the target
+    elif atype == 'grad_x_input':  # Grad×Input requested
         # Compute grad_x_input for both sequence and structure inputs
-        return igrads.grad_x_input(combined_inputs, model, target_mask=pred)
-    else:
-        raise ValueError(f'Unrecognized attribution type {atype}.')
+        return igrads.grad_x_input(combined_inputs, model, target_mask=pred)  # single-step gradient-times-input attribution, using `pred` as the target
+    else:  # unsupported atype string
+        raise ValueError(f'Unrecognized attribution type {atype}.')  # fail loudly rather than silently skipping attribution
 
 
-custom_color_scheme = {
+custom_color_scheme = {  # per-nucleotide colors passed to logomaker.Logo for consistent, RNA-specific coloring
     'A': '#268a34',  # Green
     'C': '#2c51aa',  # Blue
     'G': '#f8981c',  # Orange
@@ -212,11 +212,11 @@ def make_attribution_figure(a, ax):
         - shade_below/fade_below highlight negative contributions by default.
         - a y=0 baseline is drawn in red.
     """
-    df = pd.DataFrame(a, columns=['A', 'C', 'G', 'U'])
+    df = pd.DataFrame(a, columns=['A', 'C', 'G', 'U'])  # wrap the (L,4) attribution matrix with per-base column labels for logomaker
     # logomaker.Logo(df, shade_below=.5, fade_below=.5, font_name='Arial Rounded MT Bold', ax=ax)
-    logomaker.Logo(df, shade_below=.5, fade_below=.5, ax=ax, color_scheme=custom_color_scheme)
-    ax.spines['bottom'].set_visible(False)
-    ax.axhline(0, color='#ea2529', linewidth=1.5)
+    logomaker.Logo(df, shade_below=.5, fade_below=.5, ax=ax, color_scheme=custom_color_scheme)  # draw the logo, shading/fading negative-valued letters
+    ax.spines['bottom'].set_visible(False)  # hide the default bottom axis line (replaced by the y=0 baseline below)
+    ax.axhline(0, color='#ea2529', linewidth=1.5)  # draw an explicit red baseline at y=0 to separate positive/negative contributions
     
     
 def visualize_track_attribution(track, attribution, sequence=None, title=None):
@@ -247,46 +247,46 @@ def visualize_track_attribution(track, attribution, sequence=None, title=None):
         matplotlib.figure.Figure:
             The created figure instance.
     """
-    nplots = 3 if sequence is not None else 2
-    hratio = [5, 2, 0.3] if sequence is not None else [5, 2]
-    
-    fig, axs = plt.subplots(nplots, 1, figsize=(22, 5), gridspec_kw={'height_ratios': hratio})
-    axs[0].set_title(title)
-    axs[0].plot(track, color='red', label='Pred. Signal', linewidth=2)
-    
-    if isinstance(attribution, torch.Tensor):
-        attribution = attribution.detach().cpu().numpy()
+    nplots = 3 if sequence is not None else 2  # add a third panel only when a sequence logo is requested
+    hratio = [5, 2, 0.3] if sequence is not None else [5, 2]  # track panel gets most height, attribution less, sequence logo a thin strip
 
-    make_attribution_figure(attribution, axs[1])
-    
-    if sequence is not None:
-        make_attribution_figure(sequence2onehot(sequence).numpy(), axs[2])
-    
-    for ax in axs:
+    fig, axs = plt.subplots(nplots, 1, figsize=(22, 5), gridspec_kw={'height_ratios': hratio})  # stacked subplots sharing one wide figure
+    axs[0].set_title(title)  # title goes on the top (track) panel
+    axs[0].plot(track, color='red', label='Pred. Signal', linewidth=2)  # plot the 1D predicted signal along the sequence
+
+    if isinstance(attribution, torch.Tensor):  # attribution may be passed as a tensor still on GPU/autograd graph
+        attribution = attribution.detach().cpu().numpy()  # detach from autograd and move to CPU numpy for plotting
+
+    make_attribution_figure(attribution, axs[1])  # render the attribution logo in the middle panel
+
+    if sequence is not None:  # optional third panel showing the raw input sequence as a logo
+        make_attribution_figure(sequence2onehot(sequence).numpy(), axs[2])  # one-hot encode the sequence and reuse the same logo renderer
+
+    for ax in axs:  # apply to every panel
         # remove x-axis margins
-        ax.margins(x=0.005)
-        
-    
-    # remove plot boarder (except for x-axis)
-    axs[0].spines['top'].set_visible(False)
-    axs[0].spines['right'].set_visible(False)
-    axs[0].spines['bottom'].set_visible(False)
-    axs[0].get_xaxis().set_visible(False)
-    
-    axs[1].spines['top'].set_visible(False)
-    axs[1].spines['right'].set_visible(False)
-    axs[1].spines['bottom'].set_visible(False)
-    axs[1].get_xaxis().set_visible(False)
+        ax.margins(x=0.005)  # tighten horizontal padding so the sequence axis lines up tightly across panels
 
-    if sequence is not None:
-        axs[2].spines['top'].set_visible(False)
-        axs[2].spines['left'].set_visible(False)
-        axs[2].spines['right'].set_visible(False)
-        axs[2].spines['bottom'].set_visible(False)
+
+    # remove plot boarder (except for x-axis)
+    axs[0].spines['top'].set_visible(False)  # hide top border of the track panel
+    axs[0].spines['right'].set_visible(False)  # hide right border of the track panel
+    axs[0].spines['bottom'].set_visible(False)  # hide bottom border of the track panel
+    axs[0].get_xaxis().set_visible(False)  # hide x-axis ticks/labels on the track panel (shared with panels below)
+
+    axs[1].spines['top'].set_visible(False)  # hide top border of the attribution panel
+    axs[1].spines['right'].set_visible(False)  # hide right border of the attribution panel
+    axs[1].spines['bottom'].set_visible(False)  # hide bottom border of the attribution panel
+    axs[1].get_xaxis().set_visible(False)  # hide x-axis ticks/labels on the attribution panel
+
+    if sequence is not None:  # only the (optional) sequence panel needs its own spine cleanup
+        axs[2].spines['top'].set_visible(False)  # hide top border of the sequence panel
+        axs[2].spines['left'].set_visible(False)  # hide left border of the sequence panel
+        axs[2].spines['right'].set_visible(False)  # hide right border of the sequence panel
+        axs[2].spines['bottom'].set_visible(False)  # hide bottom border of the sequence panel
         #axs[2].get_xaxis().set_visible(False)
-        axs[2].get_yaxis().set_visible(False)
-    
-    return fig
+        axs[2].get_yaxis().set_visible(False)  # hide y-axis ticks/labels (the sequence logo has no meaningful y-scale)
+
+    return fig  # caller can further customize or save the composed figure
 
 
 def visualize_attribution_only(attribution):
@@ -301,21 +301,21 @@ def visualize_attribution_only(attribution):
         matplotlib.figure.Figure:
             The created figure instance.
     """
-    fig, ax = plt.subplots(1, 1, figsize=(22, 1.5))
-    
-    if isinstance(attribution, torch.Tensor):
-        attribution = attribution.detach().cpu().numpy()
-    
-    make_attribution_figure(attribution, ax)
-    
-    ax.spines['top'].set_visible(False)
-    ax.spines['left'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.spines['bottom'].set_visible(False)
-    ax.get_xaxis().set_visible(False)
-    ax.get_yaxis().set_visible(False)
+    fig, ax = plt.subplots(1, 1, figsize=(22, 1.5))  # single wide, short panel for a standalone attribution logo
 
-    return fig
+    if isinstance(attribution, torch.Tensor):  # attribution may be passed as a tensor still on GPU/autograd graph
+        attribution = attribution.detach().cpu().numpy()  # detach from autograd and move to CPU numpy for plotting
+
+    make_attribution_figure(attribution, ax)  # render the attribution logo on the single axis
+
+    ax.spines['top'].set_visible(False)  # hide top border
+    ax.spines['left'].set_visible(False)  # hide left border
+    ax.spines['right'].set_visible(False)  # hide right border
+    ax.spines['bottom'].set_visible(False)  # hide bottom border
+    ax.get_xaxis().set_visible(False)  # hide x-axis ticks/labels (position index isn't shown)
+    ax.get_yaxis().set_visible(False)  # hide y-axis ticks/labels (magnitude scale isn't shown)
+
+    return fig  # caller can further customize or save the figure
 
 
 def _to_probs(value, key):
@@ -344,13 +344,13 @@ def _to_probs(value, key):
         pred = model(inputs)  # {'something_profile': logits, 'something_mixing_coefficient': logits2}
         pred_probs = {k: _to_probs(v, k) for k, v in pred.items()}
     """
-    if '_profile' in key:
-        value = F.softmax(value, dim=1)
-    elif '_mixing_coefficient' in key:
-        value = torch.sigmoid(value)
-    else:
-        raise ValueError(f'Unknown key: {key}')
-    return value
+    if '_profile' in key:  # per-position categorical output (e.g. a base-pair profile)
+        value = F.softmax(value, dim=1)  # normalize into a probability distribution over dim=1
+    elif '_mixing_coefficient' in key:  # a bounded scalar/mixing-weight output
+        value = torch.sigmoid(value)  # squash into (0, 1)
+    else:  # key doesn't match any known naming convention
+        raise ValueError(f'Unknown key: {key}')  # fail rather than silently passing through raw logits
+    return value  # transformed (probability-space) tensor
 
 
 def predict(inputs, model, to_probs=True):
@@ -378,12 +378,12 @@ def predict(inputs, model, to_probs=True):
         ValueError:
             If to_probs=True and an output key is not recognized by `_to_probs`.
     """
-    pred = model(inputs)
-    if to_probs:
-        pred = {key: _to_probs(value, key) for key, value in pred.items()}
-    return pred
+    pred = model(inputs)  # forward pass; expected to return a dict of named output tensors
+    if to_probs:  # caller wants probabilities rather than raw logits
+        pred = {key: _to_probs(value, key) for key, value in pred.items()}  # convert every output tensor per its key naming convention
+    return pred  # dict of (possibly probability-transformed) model outputs
 
-base2int = {'A': 0, 'C': 1, 'G': 2, 'T': 3}
+base2int = {'A': 0, 'C': 1, 'G': 2, 'T': 3}  # nucleotide-to-channel-index mapping used by sequence2int (see module docstring caveat about 'U')
 
 
 def sequence2int(sequence):
@@ -403,7 +403,7 @@ def sequence2int(sequence):
         (torch.nn.functional.one_hot requires values < num_classes). Ensure sequences contain
         only valid bases before calling downstream helpers.
     """
-    return [base2int.get(base, 999) for base in sequence]
+    return [base2int.get(base, 999) for base in sequence]  # map each character to its channel index; unknown bases become the sentinel 999
 
 
 def sequences2inputs(sequences):
@@ -425,9 +425,9 @@ def sequences2inputs(sequences):
             If sequences contain invalid bases (mapped to 999), one_hot will fail.
             If sequences have inconsistent lengths, tensor construction may fail.
     """
-    if isinstance(sequences, str):
-        sequences = [sequences]
-    return F.one_hot(torch.tensor([sequence2int(s) for s in sequences]), num_classes=4).float()
+    if isinstance(sequences, str):  # normalize a single sequence into a length-1 list
+        sequences = [sequences]  # so the stacking logic below is uniform for str/list inputs
+    return F.one_hot(torch.tensor([sequence2int(s) for s in sequences]), num_classes=4).float()  # int-encode each sequence, stack into (B, L), one-hot to (B, L, 4), cast to float
 
 
 def sequence2onehot(sequence):
@@ -446,7 +446,7 @@ def sequence2onehot(sequence):
         RuntimeError / ValueError:
             If sequence contains invalid bases (mapped to 999), one_hot will fail.
     """
-    return F.one_hot(torch.tensor(sequence2int(sequence)), num_classes=4).float()
+    return F.one_hot(torch.tensor(sequence2int(sequence)), num_classes=4).float()  # int-encode the sequence to (L,), one-hot to (L, 4), cast to float
 
 
 def predict_from_sequence(sequences, model, **kwargs):
@@ -469,19 +469,19 @@ def predict_from_sequence(sequences, model, **kwargs):
             - If input is a single sequence string, each tensor will be squeezed from (1, ...) to (...).
             - If input is a list, tensors remain batched.
     """
-    one_hot = sequences2inputs(sequences)
-    pred = predict(one_hot, model, **kwargs)
-    
-    if isinstance(sequences, str):
-        pred = {key: value.squeeze(0) for key, value in pred.items()}
-    
-    return pred
+    one_hot = sequences2inputs(sequences)  # encode raw sequence(s) into a batched one-hot tensor (B, L, 4)
+    pred = predict(one_hot, model, **kwargs)  # run the standard predict() path (forward + optional logits->probs)
+
+    if isinstance(sequences, str):  # caller passed a single sequence, not a batch
+        pred = {key: value.squeeze(0) for key, value in pred.items()}  # drop the batch dim of size 1 from every output tensor
+
+    return pred  # prediction dict, batched or squeezed depending on input type
 
 
 def __predict(self, inputs, **kwargs):
     """Returns model predictions on inputs with logits to probs."""
 
-    return predict(inputs, model=self, **kwargs)
+    return predict(inputs, model=self, **kwargs)  # `self` is bound as `model` when attached via __get__ below
 
 def __predict_from_sequence(self, sequences, **kwargs):
     """Predicts on RNA/DNA sequences.
@@ -493,11 +493,11 @@ def __predict_from_sequence(self, sequences, **kwargs):
         dict: Dictionary of predictions.
     """
     # Assume a preprocessing function is required for sequence input
-    return predict_from_sequence(sequences, model=self, **kwargs)
+    return predict_from_sequence(sequences, model=self, **kwargs)  # `self` is bound as `model` when attached via __get__ below
 
 def __explain(self, inputs, **kwargs):
     """Generate attributions or explanations for model predictions."""
-    return attribution(inputs, self, **kwargs)
+    return attribution(inputs, self, **kwargs)  # NOTE: positionally `self` lands in attribution()'s `structure` slot, not `model` — likely a latent bug if used as-is
 
 def __add_attributes_and_bound_methods(model):
     """
@@ -515,9 +515,9 @@ def __add_attributes_and_bound_methods(model):
     Returns:
         None.
     """
-    model.predict = __predict.__get__(model)
-    model.predict_from_sequence = __predict_from_sequence.__get__(model)
-    model.explain = __explain.__get__(model)
+    model.predict = __predict.__get__(model)  # bind __predict as a method, so `self`==model inside it
+    model.predict_from_sequence = __predict_from_sequence.__get__(model)  # bind __predict_from_sequence as a method
+    model.explain = __explain.__get__(model)  # bind __explain as a method
     
 
 def load_model(model, filepath, **kwargs):
@@ -542,7 +542,7 @@ def load_model(model, filepath, **kwargs):
         - This uses `torch.load(filepath)` directly. If you need CPU/GPU mapping, you may want
           to modify to `torch.load(filepath, map_location=...)`.
     """
-    model.load_state_dict(torch.load(filepath))
-    __add_attributes_and_bound_methods(model)
-    model.eval()
-    return model
+    model.load_state_dict(torch.load(filepath))  # deserialize the checkpoint (pickle-based) and load weights into `model` in-place
+    __add_attributes_and_bound_methods(model)  # attach .predict / .predict_from_sequence / .explain convenience methods
+    model.eval()  # switch to inference mode (disables dropout, freezes batchnorm stats)
+    return model  # same instance, now loaded, patched, and in eval mode
