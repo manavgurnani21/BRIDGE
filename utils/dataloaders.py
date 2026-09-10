@@ -105,9 +105,9 @@ Notes and caveats
 
 """
 
-from typing import List, Tuple
-import numpy as np
-import re
+from typing import List, Tuple  # type hints for the return signatures below
+import numpy as np  # builds the numeric label arrays and object-dtype sequence/struct arrays
+import re  # regex validation of nucleotide sequence characters
 
 def read_fasta_with_struct_single(
     path: str,
@@ -169,31 +169,31 @@ def read_fasta_with_struct_single(
         - If your files contain lowercase letters, you may want to `.upper()` the sequence
           before validation (not done here to keep behavior explicit).
     """
-    sequences: List[str] = []
-    structs: List[str] = []
+    sequences: List[str] = []  # accumulates the raw nucleotide sequence for each record
+    structs: List[str] = []  # accumulates the raw comma-separated structure-score string for each record
 
-    with open(path, "r") as f:
-        lines = [ln.strip() for ln in f if ln.strip()]
+    with open(path, "r") as f:  # open the FASTA-like file for reading
+        lines = [ln.strip() for ln in f if ln.strip()]  # strip whitespace and drop blank lines, keeping only content lines
 
-    if len(lines) % 3 != 0:
-        raise ValueError(f"{path}: line count is not a multiple of 3")
+    if len(lines) % 3 != 0:  # each record must be exactly 3 lines (header, sequence, structure)
+        raise ValueError(f"{path}: line count is not a multiple of 3")  # malformed file: line count doesn't divide evenly into records
 
-    for i in range(0, len(lines), 3):
-        hdr, seq, struct_str = lines[i], lines[i+1], lines[i+2]
-        if not hdr.startswith(">"):
-            raise ValueError(f"{path}: invalid header at line {i}")
-        if not re.fullmatch(r"[ACGTUN]+", seq):
-            raise ValueError(f"{path}: invalid sequence at block {i}")
+    for i in range(0, len(lines), 3):  # step through the file 3 lines at a time, one record per iteration
+        hdr, seq, struct_str = lines[i], lines[i+1], lines[i+2]  # unpack this record's header, sequence, and structure-score line
+        if not hdr.startswith(">"):  # FASTA headers must start with '>'
+            raise ValueError(f"{path}: invalid header at line {i}")  # reject a record whose header line is malformed
+        if not re.fullmatch(r"[ACGTUN]+", seq):  # sequence must contain only uppercase DNA/RNA bases or 'N'
+            raise ValueError(f"{path}: invalid sequence at block {i}")  # reject a sequence with disallowed/lowercase characters
 
-        arr_len = len(struct_str.split(","))
-        if len(seq) != arr_len:
-            raise ValueError(f"{path}: length mismatch (seq={len(seq)}, struct={arr_len})")
+        arr_len = len(struct_str.split(","))  # count how many comma-separated structure tokens this record has
+        if len(seq) != arr_len:  # structure scores must be one-per-base, so lengths must match
+            raise ValueError(f"{path}: length mismatch (seq={len(seq)}, struct={arr_len})")  # reject a record where sequence and structure lengths disagree
 
-        sequences.append(seq)
-        structs.append(struct_str)
+        sequences.append(seq)  # keep this record's sequence string
+        structs.append(struct_str)  # keep this record's raw structure-score string (left unparsed for downstream code)
 
-    labels = np.full((len(sequences), 1), label_val, dtype=np.float32)
-    return sequences, structs, labels
+    labels = np.full((len(sequences), 1), label_val, dtype=np.float32)  # build a column of the constant file-level label, one row per record
+    return sequences, structs, labels  # hand back parallel lists/array for this single file
 
 
 def read_fasta(
@@ -252,11 +252,11 @@ def read_fasta(
           this reader allows variable length across records as long as each record's
           sequence length matches its structure length.
     """
-    seq_neg, struct_neg, label_neg = read_fasta_with_struct_single(neg_path, 0)
-    seq_pos, struct_pos, label_pos = read_fasta_with_struct_single(pos_path, 1)
+    seq_neg, struct_neg, label_neg = read_fasta_with_struct_single(neg_path, 0)  # read the negative-class file, labeling every record 0
+    seq_pos, struct_pos, label_pos = read_fasta_with_struct_single(pos_path, 1)  # read the positive-class file, labeling every record 1
 
-    sequences = np.array(seq_pos + seq_neg, dtype=object)
-    structs   = np.array(struct_pos + struct_neg, dtype=object)
-    labels    = np.vstack([label_pos, label_neg]).astype(np.float32)
+    sequences = np.array(seq_pos + seq_neg, dtype=object)  # concatenate positives before negatives into one object-dtype sequence array
+    structs   = np.array(struct_pos + struct_neg, dtype=object)  # concatenate the matching structure strings in the same pos-then-neg order
+    labels    = np.vstack([label_pos, label_neg]).astype(np.float32)  # stack the label columns in the same pos-then-neg order
 
-    return sequences, structs, labels
+    return sequences, structs, labels  # combined (N,) sequences, (N,) structs, (N,1) labels for the full dataset

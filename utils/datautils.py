@@ -104,27 +104,27 @@ Notes and caveats
   explicit handling of ``N`` or other IUPAC codes, extend the implementation.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import absolute_import  # Python 2/3 compatibility shim (legacy; harmless under Python 3)
+from __future__ import division  # ditto: forces true division under old Python 2 semantics
+from __future__ import print_function  # ditto: enables print() as a function
 
-import os, sys, h5py
-import numpy as np
-from copy import deepcopy
+import os, sys, h5py  # os/sys: filesystem ops; h5py: legacy HDF5 loaders (only used by the commented-out functions below)
+import numpy as np  # array math for one-hot encoding and dataset splitting
+from copy import deepcopy  # imported for legacy callers; unused by the active functions in this file
 
 
 def make_directory(path, foldername, verbose=1):
     """Make a directory"""
 
-    if not os.path.isdir(path):
-        os.mkdir(path)
-        print("making directory: " + path)
+    if not os.path.isdir(path):  # only create the parent if it doesn't already exist
+        os.mkdir(path)  # create the parent directory
+        print("making directory: " + path)  # log the creation
 
-    outdir = os.path.join(path, foldername)
-    if not os.path.isdir(outdir):
-        os.mkdir(outdir)
-        print("making directory: " + outdir)
-    return outdir
+    outdir = os.path.join(path, foldername)  # target subdirectory path
+    if not os.path.isdir(outdir):  # only create the subdirectory if it doesn't already exist
+        os.mkdir(outdir)  # create the subdirectory
+        print("making directory: " + outdir)  # log the creation
+    return outdir  # full path to the (now guaranteed to exist) subdirectory
 
 
 def finished(path, line_num):
@@ -141,14 +141,14 @@ def finished(path, line_num):
             True if file exists and line count matches `line_num`, else False.
     """
 
-    if os.path.exists(path):
-        with open(path, "r") as f:
-            if line_num == len(f.readlines()):
-                return True
+    if os.path.exists(path):  # only a file that exists can be "finished"
+        with open(path, "r") as f:  # open the results file for reading
+            if line_num == len(f.readlines()):  # compare actual line count to the expected count
+                return True  # file has exactly the expected number of lines: run is complete
             else:
-                return False
+                return False  # line count mismatch: run is incomplete or file is corrupted
     else:
-        return False
+        return False  # missing file: run hasn't produced results yet
 
 
 def get_file_names(dataset_path):
@@ -163,11 +163,11 @@ def get_file_names(dataset_path):
         list[str]:
             Filenames (not full paths) whose extension is exactly '.h5'.
     """
-    file_names = []
-    for file_name in os.listdir(dataset_path):
-        if os.path.splitext(file_name)[1] == '.h5':
-            file_names.append(file_name)
-    return file_names
+    file_names = []  # accumulates matching filenames
+    for file_name in os.listdir(dataset_path):  # scan every entry in the directory
+        if os.path.splitext(file_name)[1] == '.h5':  # keep only files with a literal '.h5' extension
+            file_names.append(file_name)  # record this HDF5 filename
+    return file_names  # list of '.h5' filenames (not full paths) found in dataset_path
 
 
 def md5(string):
@@ -182,7 +182,7 @@ def md5(string):
         str:
             Lowercase MD5 hex digest.
     """
-    return hashlib.md5(string.encode('utf-8')).hexdigest()
+    return hashlib.md5(string.encode('utf-8')).hexdigest()  # encode to bytes, then hash and hex-format (note: `hashlib` is not imported in this module, so calling this will raise NameError)
 
 
 def mat2str(m):
@@ -202,15 +202,15 @@ def mat2str(m):
         - For 2D arrays, rows are flattened in row-major order.
         - Does not insert line breaks between rows.
     """
-    string = ""
-    if len(m.shape)==1:
-        for j in range(m.shape[0]):
-            string+= "%.3f," % m[j]
-    else:
-        for i in range(m.shape[0]):
-            for j in range(m.shape[1]):
-                string+= "%.3f," % m[i,j]
-    return string
+    string = ""  # accumulator for the output string
+    if len(m.shape)==1:  # 1D array: emit one value per element
+        for j in range(m.shape[0]):  # iterate over the single axis
+            string+= "%.3f," % m[j]  # append this value formatted to 3 decimals, with trailing comma
+    else:  # 2D array: emit values in row-major order
+        for i in range(m.shape[0]):  # iterate over rows
+            for j in range(m.shape[1]):  # iterate over columns within the row
+                string+= "%.3f," % m[i,j]  # append this cell's value formatted to 3 decimals, with trailing comma
+    return string  # comma-separated string of all values (with a trailing comma)
     
     
 def convert_one_hot(sequence, max_length=None):
@@ -243,36 +243,36 @@ def convert_one_hot(sequence, max_length=None):
         - Characters other than A/C/G/U/T are ignored (remain all-zeros at that position).
           If you want explicit handling of 'N' etc., add it upstream.
     """
-    one_hot_seq = []
-    for seq in sequence:
-        seq = seq.upper()
-        seq_length = len(seq)
-        one_hot = np.zeros((4,seq_length))
-        index = [j for j in range(seq_length) if seq[j] == 'A']
-        one_hot[0,index] = 1
-        index = [j for j in range(seq_length) if seq[j] == 'C']
-        one_hot[1,index] = 1
-        index = [j for j in range(seq_length) if seq[j] == 'G']
-        one_hot[2,index] = 1
-        index = [j for j in range(seq_length) if (seq[j] == 'U') | (seq[j] == 'T')]
-        one_hot[3,index] = 1
+    one_hot_seq = []  # accumulates one (4, L) or (4, max_length) array per input sequence
+    for seq in sequence:  # process each sequence independently
+        seq = seq.upper()  # normalize case so matching below is case-insensitive
+        seq_length = len(seq)  # this sequence's raw (unpadded) length
+        one_hot = np.zeros((4,seq_length))  # preallocate the 4-channel one-hot array for this sequence
+        index = [j for j in range(seq_length) if seq[j] == 'A']  # positions where the base is adenine
+        one_hot[0,index] = 1  # set the A channel at those positions
+        index = [j for j in range(seq_length) if seq[j] == 'C']  # positions where the base is cytosine
+        one_hot[1,index] = 1  # set the C channel at those positions
+        index = [j for j in range(seq_length) if seq[j] == 'G']  # positions where the base is guanine
+        one_hot[2,index] = 1  # set the G channel at those positions
+        index = [j for j in range(seq_length) if (seq[j] == 'U') | (seq[j] == 'T')]  # positions where the base is uracil (RNA) or thymine (DNA)
+        one_hot[3,index] = 1  # set the U/T channel at those positions
 
         # handle boundary conditions with zero-padding
-        if max_length:
-            offset1 = int((max_length - seq_length)/2)
-            offset2 = max_length - seq_length - offset1
+        if max_length:  # only pad if a target length was requested
+            offset1 = int((max_length - seq_length)/2)  # zero-padding added before the sequence (centers it)
+            offset2 = max_length - seq_length - offset1  # zero-padding added after the sequence (absorbs any rounding remainder)
 
-            if offset1:
-                one_hot = np.hstack([np.zeros((4,offset1)), one_hot])
-            if offset2:
-                one_hot = np.hstack([one_hot, np.zeros((4,offset2))])
+            if offset1:  # skip if no left padding is needed
+                one_hot = np.hstack([np.zeros((4,offset1)), one_hot])  # prepend left padding along the length axis
+            if offset2:  # skip if no right padding is needed
+                one_hot = np.hstack([one_hot, np.zeros((4,offset2))])  # append right padding along the length axis
 
-        one_hot_seq.append(one_hot)
+        one_hot_seq.append(one_hot)  # keep this sequence's (padded) one-hot array
 
     # convert to numpy array
-    one_hot_seq = np.array(one_hot_seq)
+    one_hot_seq = np.array(one_hot_seq)  # stack all sequences into a single (N, 4, L) array
 
-    return one_hot_seq
+    return one_hot_seq  # one-hot encoded batch, channel order A, C, G, U/T
 
 
 def split_dataset(data, targets, valid_frac=0.2):
@@ -303,24 +303,24 @@ def split_dataset(data, targets, valid_frac=0.2):
         - Within each class, indices are randomly permuted via np.random.permutation.
         - The returned train/test are concatenations of positives then negatives (as implemented).
     """    
-    ind0 = np.where(targets<0.5)[0]
-    ind1 = np.where(targets>=0.5)[0]
-    
-    n_neg = int(len(ind0)*valid_frac)
-    n_pos = int(len(ind1)*valid_frac)
+    ind0 = np.where(targets<0.5)[0]  # indices of negative-class samples
+    ind1 = np.where(targets>=0.5)[0]  # indices of positive-class samples
 
-    shuf_neg = np.random.permutation(len(ind0))
-    shuf_pos = np.random.permutation(len(ind1))
+    n_neg = int(len(ind0)*valid_frac)  # number of negatives to hold out for the test split
+    n_pos = int(len(ind1)*valid_frac)  # number of positives to hold out for the test split
 
-    X_train = np.concatenate((data[ind1[shuf_pos[n_pos:]]], data[ind0[shuf_neg[n_neg:]]]))
-    Y_train = np.concatenate((targets[ind1[shuf_pos[n_pos:]]], targets[ind0[shuf_neg[n_neg:]]]))
-    train = (X_train, Y_train)
+    shuf_neg = np.random.permutation(len(ind0))  # random ordering over the negative-class indices
+    shuf_pos = np.random.permutation(len(ind1))  # random ordering over the positive-class indices
 
-    X_test = np.concatenate((data[ind1[shuf_pos[:n_pos]]], data[ind0[shuf_neg[:n_neg]]]))
-    Y_test = np.concatenate((targets[ind1[shuf_pos[:n_pos]]], targets[ind0[shuf_neg[:n_neg]]]))
-    test = (X_test, Y_test)
+    X_train = np.concatenate((data[ind1[shuf_pos[n_pos:]]], data[ind0[shuf_neg[n_neg:]]]))  # remaining (non-held-out) positives + negatives as training features
+    Y_train = np.concatenate((targets[ind1[shuf_pos[n_pos:]]], targets[ind0[shuf_neg[n_neg:]]]))  # matching training targets, same ordering
+    train = (X_train, Y_train)  # bundle training features and targets
 
-    return train, test
+    X_test = np.concatenate((data[ind1[shuf_pos[:n_pos]]], data[ind0[shuf_neg[:n_neg]]]))  # held-out positives + negatives as test features
+    Y_test = np.concatenate((targets[ind1[shuf_pos[:n_pos]]], targets[ind0[shuf_neg[:n_neg]]]))  # matching test targets, same ordering
+    test = (X_test, Y_test)  # bundle test features and targets
+
+    return train, test  # (train, test) tuples, each (X, Y), stratified by the 0.5 target threshold
 
 
 # def rescale(vec, thr=0.0):

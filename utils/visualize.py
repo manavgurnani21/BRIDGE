@@ -64,16 +64,16 @@ Common pitfalls
   strictly meaningful unless `norm == 1` (fixed-height mode).
 """
 
-import os, sys
-import numpy as np
-import matplotlib as mpl
-mpl.use("pdf")
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
-from skimage.transform import resize as imresize
-import torch
-import utils.datautils as datautils
-from PIL import Image
+import os, sys  # unused beyond import; kept for parity with original script
+import numpy as np  # array ops for PWMs, logo canvases, and heatmap resizing
+import matplotlib as mpl  # backend selection and colormap access
+mpl.use("pdf")  # set a non-interactive backend (see module docstring: figures are still saved as PNG)
+import matplotlib.pyplot as plt  # figure/axis creation and saving
+import matplotlib.gridspec as gridspec  # multi-row layout for the saliency figure
+from skimage.transform import resize as imresize  # resize glyphs/heatmaps to target pixel dimensions
+import torch  # tensors, no_grad, sigmoid for the inference() helper
+import utils.datautils as datautils  # imported but not directly referenced in this module
+from PIL import Image  # imported but not directly referenced in this module
 
 
 def inference(args, model, device, test_loader):
@@ -110,19 +110,19 @@ def inference(args, model, device, test_loader):
         - If the model output is multi-dimensional (e.g., (B, C)), the returned array will
           preserve that shape.
     """
-    model.eval()
-    p_all = []
-    with torch.no_grad():
-        for batch_idx, (x0, y0) in enumerate(test_loader):
-            x, y = x0.float().to(device), y0.to(device).float()
-            output = model(x)
-            prob = torch.sigmoid(output)
+    model.eval()  # switch to inference mode (disables dropout, freezes batchnorm stats)
+    p_all = []  # collects per-batch probability arrays
+    with torch.no_grad():  # no gradients needed for inference
+        for batch_idx, (x0, y0) in enumerate(test_loader):  # iterate (input, label) batches
+            x, y = x0.float().to(device), y0.to(device).float()  # cast to float and move to the inference device
+            output = model(x)  # forward pass, assumed to return logits
+            prob = torch.sigmoid(output)  # convert logits to probabilities
 
-            p_np = prob.to(device='cpu').numpy()
-            p_all.append(p_np)
+            p_np = prob.to(device='cpu').numpy()  # move to CPU as a NumPy array
+            p_all.append(p_np)  # stash this batch's probabilities
 
-    p_all = np.concatenate(p_all)
-    return p_all
+    p_all = np.concatenate(p_all)  # flatten all per-batch arrays into one dataset-level array
+    return p_all  # concatenated probabilities across the whole loader
 
 
 def normalize_pwm(pwm, factor=None, MAX=None):
@@ -152,13 +152,13 @@ def normalize_pwm(pwm, factor=None, MAX=None):
           or handle zeros upstream.
         - The normalization uses absolute values, which allows negative entries but normalizes by their magnitude.
     """
-    if MAX is None:
-        MAX = np.max(np.abs(pwm))
-    pwm = pwm/MAX
-    if factor:
-        pwm = np.exp(pwm*factor)
-    norm = np.outer(np.ones(pwm.shape[0]), np.sum(np.abs(pwm), axis=0))
-    return pwm/norm
+    if MAX is None:  # no explicit scale given, derive one from the data
+        MAX = np.max(np.abs(pwm))  # largest-magnitude entry across the whole PWM
+    pwm = pwm/MAX  # scale all entries into roughly [-1, 1]
+    if factor:  # optional contrast-sharpening step
+        pwm = np.exp(pwm*factor)  # exponentiate to exaggerate differences between large/small values
+    norm = np.outer(np.ones(pwm.shape[0]), np.sum(np.abs(pwm), axis=0))  # broadcast each column's L1 norm across all rows
+    return pwm/norm  # column-normalize so each position's channel magnitudes sum to 1
 
 
 def get_nt_height(pwm, height, norm):
@@ -190,24 +190,24 @@ def get_nt_height(pwm, height, norm):
         - If `pwm` contains negative values, the entropy/information-content interpretation
           is not strictly valid; this function assumes non-negative columns for that mode.
     """
-    def entropy(p):
-        s = 0
-        for i in range(len(p)):
-            if p[i] > 0:
-                s -= p[i]*np.log2(p[i])
+    def entropy(p):  # Shannon entropy (base 2) of one PWM column, ignoring non-positive entries
+        s = 0  # running entropy accumulator
+        for i in range(len(p)):  # sum over nucleotide channels
+            if p[i] > 0:  # log2(0) is undefined, so zero/negative weights contribute nothing
+                s -= p[i]*np.log2(p[i])  # standard -p*log2(p) entropy term
         return s
 
-    num_nt, num_seq = pwm.shape
-    heights = np.zeros((num_nt,num_seq))
-    for i in range(num_seq):
-        if norm == 1:
+    num_nt, num_seq = pwm.shape  # number of channels (rows) and sequence positions (columns)
+    heights = np.zeros((num_nt,num_seq))  # output height allocation, same shape as pwm
+    for i in range(num_seq):  # compute total height and per-channel allocation independently per position
+        if norm == 1:  # fixed-height mode: every position gets the same total height
             total_height = height
-        else:
+        else:  # information-content mode: taller stacks at low-entropy (more informative) positions
             total_height = (np.log2(num_nt) - entropy(pwm[:, i]))*height
-        
-        heights[:,i] = np.floor(pwm[:,i]*np.minimum(total_height, height*2))
 
-    return heights.astype(int)
+        heights[:,i] = np.floor(pwm[:,i]*np.minimum(total_height, height*2))  # distribute total height proportionally to each channel's weight, capped at height*2
+
+    return heights.astype(int)  # integer pixel heights for the logo renderer
 
 
 def seq_logo(pwm, height=30, nt_width=10, norm=0, alphabet='rna', colormap='standard'):
@@ -239,37 +239,37 @@ def seq_logo(pwm, height=30, nt_width=10, norm=0, alphabet='rna', colormap='stan
         - This function expects an `acgu.npz` file at `./acgu.npz` containing nucleotide glyphs
           under the key `'data'`. The glyph array is expected to be indexable by nucleotide index.
     """
-    acgu_path = './acgu.npz'
-    chars = np.load(acgu_path,allow_pickle=True)['data']
-    heights = get_nt_height(pwm, height, norm)
-    num_nt, num_seq = pwm.shape
-    width = np.ceil(nt_width*num_seq).astype(int)
-    
-    max_height = height*2
-    logo = np.ones((max_height, width, 3)).astype(int)*255
-    for i in range(num_seq):
-        nt_height = np.sort(heights[:,i])
-        index = np.argsort(heights[:,i])
-        remaining_height = np.sum(heights[:,i])
-        offset = max_height-remaining_height
+    acgu_path = './acgu.npz'  # fixed relative path to the pre-rendered nucleotide glyph archive
+    chars = np.load(acgu_path,allow_pickle=True)['data']  # RGB glyph images, one per nucleotide channel
+    heights = get_nt_height(pwm, height, norm)  # per-position, per-channel pixel heights
+    num_nt, num_seq = pwm.shape  # number of channels and sequence positions
+    width = np.ceil(nt_width*num_seq).astype(int)  # total canvas width in pixels
 
-        for j in range(num_nt):
-            if nt_height[j] <=0 :
+    max_height = height*2  # canvas height matches get_nt_height's height cap
+    logo = np.ones((max_height, width, 3)).astype(int)*255  # start with an all-white RGB canvas
+    for i in range(num_seq):  # render one column (position) at a time
+        nt_height = np.sort(heights[:,i])  # this position's channel heights, ascending
+        index = np.argsort(heights[:,i])  # corresponding channel indices, so smallest letters are stacked at top
+        remaining_height = np.sum(heights[:,i])  # total stack height still left to place, shrinks as we place letters
+        offset = max_height-remaining_height  # top padding so the stack is bottom-aligned within the canvas
+
+        for j in range(num_nt):  # place each channel's glyph, smallest first
+            if nt_height[j] <=0 :  # zero-height channels contribute nothing to the stack
                 continue
             # resized dimensions of image
-            nt_img = imresize(chars[index[j]], output_shape=(nt_height[j], nt_width))*255
+            nt_img = imresize(chars[index[j]], output_shape=(nt_height[j], nt_width))*255  # resize this channel's glyph to its allotted height
             # determine location of image
-            height_range = range(remaining_height-nt_height[j], remaining_height)
-            width_range = range(i*nt_width, i*nt_width+nt_width)
+            height_range = range(remaining_height-nt_height[j], remaining_height)  # vertical pixel rows this glyph occupies (before offset)
+            width_range = range(i*nt_width, i*nt_width+nt_width)  # horizontal pixel columns for this sequence position
             # 'annoying' way to broadcast resized nucleotide image
-            if height_range:
-                for k in range(3):
-                    for m in range(len(width_range)):
+            if height_range:  # skip degenerate (empty) ranges
+                for k in range(3):  # RGB channels
+                    for m in range(len(width_range)):  # copy the glyph pixel-by-pixel into the canvas
                         logo[height_range+offset, width_range[m],k] = nt_img[:,m,k]
 
-            remaining_height -= nt_height[j]
+            remaining_height -= nt_height[j]  # shrink the remaining stack height by this glyph's height
 
-    return logo.astype(np.uint8)
+    return logo.astype(np.uint8)  # final RGB logo image, cast to standard image dtype
 
 
 def plot_saliency(X, W, nt_width=100, norm_factor=3, str_null=None, outdir="results/"):
@@ -305,71 +305,71 @@ def plot_saliency(X, W, nt_width=100, norm_factor=3, str_null=None, outdir="resu
             The figure is saved to disk and all matplotlib figures are closed.
     """
     # filter out zero-padding
-    plot_index = np.where(np.sum(X[:4,:], axis=0)!=0)[0]
-    num_nt = len(plot_index)
-    trace_width = num_nt*nt_width
-    trace_height = 400
-    
-    seq_str_mode = False
-    if X.shape[0]>4:
-        seq_str_mode = True
-        assert str_null is not None, "Null region is not provided."
+    plot_index = np.where(np.sum(X[:4,:], axis=0)!=0)[0]  # positions where at least one nucleotide channel is nonzero (i.e. not padding)
+    num_nt = len(plot_index)  # number of real (non-padded) positions to render
+    trace_width = num_nt*nt_width  # total pixel width for heatmap/line traces
+    trace_height = 400  # fixed pixel height for heatmap/line traces
+
+    seq_str_mode = False  # default: sequence-only plotting
+    if X.shape[0]>4:  # an extra row beyond the 4 nucleotide channels means structure data is present
+        seq_str_mode = True  # enable the structure panel and structure line overlay
+        assert str_null is not None, "Null region is not provided."  # structure mode requires a null-region mask
 
     # sequence logo
-    img_seq_raw = seq_logo(X[:4, plot_index], height=nt_width, nt_width=nt_width)
+    img_seq_raw = seq_logo(X[:4, plot_index], height=nt_width, nt_width=nt_width)  # render the raw (non-saliency) sequence as a logo image
 
     if seq_str_mode:
         # structure line
-        str_raw = X[4, plot_index]
-        if str_null.sum() > 0:
-            str_raw[str_null.T==1] = -0.01
+        str_raw = X[4, plot_index]  # per-position structure score for the real (non-padded) positions
+        if str_null.sum() > 0:  # some positions are marked as having no valid structure score
+            str_raw[str_null.T==1] = -0.01  # flag those positions with a sentinel value so they render distinctly (see white-line masking below)
 
-        line_str_raw = np.zeros(trace_width)
-        for v in range(str_raw.shape[0]):
-            line_str_raw[v*nt_width:(v+1)*nt_width] = (1-str_raw[v])*trace_height 
+        line_str_raw = np.zeros(trace_width)  # per-pixel-column line trace, one block of `nt_width` pixels per sequence position
+        for v in range(str_raw.shape[0]):  # fill in each position's block
+            line_str_raw[v*nt_width:(v+1)*nt_width] = (1-str_raw[v])*trace_height  # invert and scale the score to pixel-space y-coordinate
             # i+=1
-    
+
     # sequence saliency logo
-    seq_sal = normalize_pwm(W[:4, plot_index], factor=norm_factor)
-    img_seq_sal_logo = seq_logo(seq_sal, height=nt_width*5, nt_width=nt_width)
-    img_seq_sal = imresize(W[:4, plot_index], output_shape=(trace_height, trace_width))
+    seq_sal = normalize_pwm(W[:4, plot_index], factor=norm_factor)  # normalize+sharpen the nucleotide saliency weights into a logo-ready PWM
+    img_seq_sal_logo = seq_logo(seq_sal, height=nt_width*5, nt_width=nt_width)  # render the saliency-weighted sequence as a (taller) logo
+    img_seq_sal = imresize(W[:4, plot_index], output_shape=(trace_height, trace_width))  # resize the raw saliency weights into a heatmap-sized image
 
     if seq_str_mode:
         # structure saliency logo
-        str_sal = W[4, plot_index].reshape(1,-1)
-        img_str_sal = imresize(str_sal, output_shape=(trace_height, trace_width))
+        str_sal = W[4, plot_index].reshape(1,-1)  # structure-channel saliency as a single row
+        img_str_sal = imresize(str_sal, output_shape=(trace_height, trace_width))  # resize into a heatmap-sized image
 
-    # plot    
-    fig = plt.figure(figsize=(10.1,2))
-    gs = gridspec.GridSpec(nrows=4, ncols=1, height_ratios=[2.5, 1, 0.5, 1])
-    cmap_reversed = mpl.cm.get_cmap('jet')
+    # plot
+    fig = plt.figure(figsize=(10.1,2))  # wide, short figure to accommodate the stacked panels
+    gs = gridspec.GridSpec(nrows=4, ncols=1, height_ratios=[2.5, 1, 0.5, 1])  # 4 stacked rows: saliency logo, saliency heatmap, raw logo, (optional) structure panel
+    cmap_reversed = mpl.cm.get_cmap('jet')  # colormap used for the saliency/structure heatmaps
 
-    ax = fig.add_subplot(gs[0, 0])
+    ax = fig.add_subplot(gs[0, 0])  # top panel: saliency logo
+    ax.axis('off')  # hide axis ticks/labels/border, this is an image panel
+    ax.imshow(img_seq_sal_logo)  # display the rendered saliency logo
+    plt.text(x=trace_width-400,y=10, s='BRIDGE', fontsize=4)  # watermark/label in the top-right corner
+
+    ax = fig.add_subplot(gs[1, 0])   # second panel: raw saliency heatmap
     ax.axis('off')
-    ax.imshow(img_seq_sal_logo)
-    plt.text(x=trace_width-400,y=10, s='BRIDGE', fontsize=4)
+    ax.imshow(img_seq_sal, cmap=cmap_reversed)  # display the saliency heatmap with the jet colormap
 
-    ax = fig.add_subplot(gs[1, 0]) 
-    ax.axis('off')
-    ax.imshow(img_seq_sal, cmap=cmap_reversed)
-
-    ax = fig.add_subplot(gs[2, 0]) 
+    ax = fig.add_subplot(gs[2, 0])   # third panel: raw sequence logo (no saliency weighting)
     ax.axis('off')
     ax.imshow(img_seq_raw)
 
     if seq_str_mode:
-        ax = fig.add_subplot(gs[3, 0]) 
+        ax = fig.add_subplot(gs[3, 0])   # fourth panel (only if structure data present): structure saliency heatmap + structure trace
         ax.axis('off')
-        ax.imshow(img_str_sal, cmap=cmap_reversed)
-        ax.plot(line_str_raw, '-', color='r', linewidth=1, scalex=False, scaley=False)
-        
+        ax.imshow(img_str_sal, cmap=cmap_reversed)  # display the structure saliency heatmap
+        ax.plot(line_str_raw, '-', color='r', linewidth=1, scalex=False, scaley=False)  # overlay the raw structure score as a red line trace
+
         # plot balck line to hide the -1(NULL structure score)
-        x = (np.zeros(trace_width) + (1+0.01))*trace_height  +1.5
-        ax.plot(x, '-', color='white', linewidth=1.2, scalex=False, scaley=False)
-    
-    plt.subplots_adjust(wspace=0, hspace=0)
-    
+        x = (np.zeros(trace_width) + (1+0.01))*trace_height  +1.5  # a constant y-position just below the plotted range
+        ax.plot(x, '-', color='white', linewidth=1.2, scalex=False, scaley=False)  # draw a white line to visually mask the null-structure sentinel dip
+
+    plt.subplots_adjust(wspace=0, hspace=0)  # remove spacing between the stacked panels so they align as one continuous track
+
     # save figure
-    filepath = outdir
-    fig.savefig(filepath, format='png', dpi=300, bbox_inches='tight')
-    plt.close('all')
+    filepath = outdir  # despite the parameter name, this is treated as a full file path (see module docstring)
+    fig.savefig(filepath, format='png', dpi=300, bbox_inches='tight')  # save the composed figure as a PNG
+    plt.close('all')  # release the figure/axes to avoid accumulating open figures across repeated calls

@@ -157,20 +157,20 @@ Accumulate metrics across batches:
 """
 
 
-import os, sys
-import numpy as np
-from six.moves import cPickle
-from sklearn.metrics import roc_curve, auc, precision_recall_curve, accuracy_score, roc_auc_score, confusion_matrix
-from sklearn.metrics import f1_score, matthews_corrcoef
-from scipy import stats
+import os, sys  # unused in this module beyond import; kept for parity with original script
+import numpy as np  # array math and nan-aware aggregation (nanmean/nanstd)
+from six.moves import cPickle  # py2/py3-compatible pickle alias (unused directly here)
+from sklearn.metrics import roc_curve, auc, precision_recall_curve, accuracy_score, roc_auc_score, confusion_matrix  # curve/scalar metric primitives
+from sklearn.metrics import f1_score, matthews_corrcoef  # additional classification metrics
+from scipy import stats  # Pearson correlation (stats.pearsonr)
 
 __all__ = [
-    "pearsonr",
-    "rsquare",
-    "accuracy",
-    "roc",
-    "pr",
-    "calculate_metrics"
+    "pearsonr",  # Pearson correlation coefficient(s) between label and prediction
+    "rsquare",  # no-intercept R^2-like fit metric and slope
+    "accuracy",  # thresholded accuracy score
+    "roc",  # ROC-AUC and ROC curve points
+    "pr",  # PR-AUC and precision-recall curve points
+    "calculate_metrics"  # unified per-objective metric dispatcher used by MLMetrics
 ]
 
 
@@ -206,8 +206,8 @@ class MLMetrics(object):
         - `other_lst` passed to update() is appended to the metric vector and stored.
     """
     def __init__(self, objective='binary'):
-        self.objective = objective
-        self.metrics = []
+        self.objective = objective  # which calculate_metrics branch to use on each update
+        self.metrics = []  # history of per-update mean-metric vectors
 
     def update(self, label, pred, other_lst):
         """
@@ -224,11 +224,11 @@ class MLMetrics(object):
         Returns:
             None. Updates internal state in-place.
         """
-        met, _ = calculate_metrics(label, pred, self.objective)
-        if len(other_lst) > 0:
-            met.extend(other_lst)
-        self.metrics.append(met)
-        self.compute_avg()
+        met, _ = calculate_metrics(label, pred, self.objective)  # compute this batch's mean-metric vector (std discarded)
+        if len(other_lst) > 0:  # caller passed extra scalars (e.g. loss) to track alongside metrics
+            met.extend(other_lst)  # append them to the end of the metric vector
+        self.metrics.append(met)  # record this update in the running history
+        self.compute_avg()  # refresh avg/sum and the convenience scalar attributes
 
     def compute_avg(self):
         """
@@ -237,23 +237,23 @@ class MLMetrics(object):
         Returns:
             None. Populates `avg`, `sum`, and convenience fields such as `acc`, `auc`, etc.
         """
-        if len(self.metrics) > 1:
-            self.avg = np.array(self.metrics).mean(axis=0)
-            self.sum = np.array(self.metrics).sum(axis=0)
-        else:
-            self.avg = self.metrics[0]
-            self.sum = self.metrics[0]
-        self.acc = self.avg[0]
-        self.auc = self.avg[1]
-        self.prc = self.avg[2]
-        self.f1 = self.avg[3]
-        self.mcc = self.avg[4]
-        self.tp = int(self.sum[5])
-        self.tn = int(self.sum[6])
-        self.fp = int(self.sum[7])
-        self.fn = int(self.sum[8])
-        if len(self.avg) > 9:
-            self.other = self.avg[9:]
+        if len(self.metrics) > 1:  # more than one update recorded so far
+            self.avg = np.array(self.metrics).mean(axis=0)  # elementwise mean across all stored metric vectors
+            self.sum = np.array(self.metrics).sum(axis=0)  # elementwise sum across all stored metric vectors
+        else:  # only one update so far, avoid degenerate mean/sum over a single row
+            self.avg = self.metrics[0]  # single metric vector is trivially its own average
+            self.sum = self.metrics[0]  # single metric vector is trivially its own sum
+        self.acc = self.avg[0]  # running-average accuracy (index 0 of the metric vector)
+        self.auc = self.avg[1]  # running-average ROC-AUC (index 1)
+        self.prc = self.avg[2]  # running-average PR-AUC (index 2)
+        self.f1 = self.avg[3]  # running-average F1 score (index 3)
+        self.mcc = self.avg[4]  # running-average Matthews correlation coefficient (index 4)
+        self.tp = int(self.sum[5])  # cumulative true positives across all updates
+        self.tn = int(self.sum[6])  # cumulative true negatives across all updates
+        self.fp = int(self.sum[7])  # cumulative false positives across all updates
+        self.fn = int(self.sum[8])  # cumulative false negatives across all updates
+        if len(self.avg) > 9:  # extra scalars (e.g. loss) were appended via other_lst
+            self.other = self.avg[9:]  # expose the running average of those extra scalars
 
 
 def pearsonr(label, prediction):
@@ -276,17 +276,17 @@ def pearsonr(label, prediction):
           while for 2D it returns only the coefficient (float). This is preserved as-is.
           If you want strict consistency, convert the 1D case to `stats.pearsonr(...)[0]`.
     """
-    ndim = np.ndim(label)
-    if ndim == 1:
-        corr = [stats.pearsonr(label, prediction)]
-    else:
-        num_labels = label.shape[1]
-        corr = []
-        for i in range(num_labels):
+    ndim = np.ndim(label)  # determine whether label is 1D (single target) or 2D (multi-label)
+    if ndim == 1:  # single-column case
+        corr = [stats.pearsonr(label, prediction)]  # wrap the (r, p-value) tuple in a list, per the documented asymmetry
+    else:  # multi-label case, one column per target
+        num_labels = label.shape[1]  # number of target columns
+        corr = []  # accumulates per-column Pearson r
+        for i in range(num_labels):  # loop over each label column independently
             # corr.append(np.corrcoef(label[:,i], prediction[:,i]))
-            corr.append(stats.pearsonr(label[:, i], prediction[:, i])[0])
+            corr.append(stats.pearsonr(label[:, i], prediction[:, i])[0])  # keep only the correlation coefficient, drop the p-value
 
-    return corr
+    return corr  # list of Pearson correlation(s), one per column (or wrapped tuple for 1D)
 
 
 def rsquare(label, prediction):
@@ -314,30 +314,30 @@ def rsquare(label, prediction):
     Notes:
         - This is not the standard sklearn R^2 with intercept; it forces the regression through origin.
     """
-    ndim = np.ndim(label)
-    if ndim == 1:
-        y = label
-        X = prediction
-        m = np.dot(X, y) / np.dot(X, X)
-        resid = y - m * X;
-        ym = y - np.mean(y);
-        rsqr2 = 1 - np.dot(resid.T, resid) / np.dot(ym.T, ym);
-        metric = [rsqr2]
-        slope = [m]
-    else:
-        num_labels = label.shape[1]
-        metric = []
-        slope = []
-        for i in range(num_labels):
-            y = label[:, i]
-            X = prediction[:, i]
-            m = np.dot(X, y) / np.dot(X, X)
-            resid = y - m * X;
-            ym = y - np.mean(y);
-            rsqr2 = 1 - np.dot(resid.T, resid) / np.dot(ym.T, ym);
-            metric.append(rsqr2)
-            slope.append(m)
-    return metric, slope
+    ndim = np.ndim(label)  # 1D (single target) vs 2D (multi-label) input
+    if ndim == 1:  # single-column case
+        y = label  # ground truth values
+        X = prediction  # predicted values used as the regressor
+        m = np.dot(X, y) / np.dot(X, X)  # least-squares slope for a no-intercept fit y ≈ m*X
+        resid = y - m * X;  # residuals of the fitted line
+        ym = y - np.mean(y);  # labels centered around their mean (for the R^2 denominator)
+        rsqr2 = 1 - np.dot(resid.T, resid) / np.dot(ym.T, ym);  # 1 - (residual sum of squares / total sum of squares)
+        metric = [rsqr2]  # wrap the single R^2 value in a list for a uniform return type
+        slope = [m]  # wrap the single slope value in a list for a uniform return type
+    else:  # multi-label case, one column per target
+        num_labels = label.shape[1]  # number of target columns
+        metric = []  # accumulates per-column R^2 values
+        slope = []  # accumulates per-column slopes
+        for i in range(num_labels):  # fit the no-intercept regression independently per column
+            y = label[:, i]  # ground truth for this column
+            X = prediction[:, i]  # predictions for this column
+            m = np.dot(X, y) / np.dot(X, X)  # least-squares slope for this column's no-intercept fit
+            resid = y - m * X;  # residuals for this column
+            ym = y - np.mean(y);  # centered labels for this column
+            rsqr2 = 1 - np.dot(resid.T, resid) / np.dot(ym.T, ym);  # R^2-like score for this column
+            metric.append(rsqr2)  # store this column's R^2
+            slope.append(m)  # store this column's slope
+    return metric, slope  # (R^2 values, slopes), each a list aligned with label columns
 
 
 def f1_sc(label, prediction):
@@ -358,15 +358,15 @@ def f1_sc(label, prediction):
     Notes:
         - Uses `np.round`, i.e., threshold at 0.5 with bankers rounding rules for exact .5 values.
     """
-    ndim = np.ndim(label)
-    if ndim == 1:
-        metric = np.array(f1_score(label, np.round(prediction)))
-    else:
-        num_labels = label.shape[1]
-        metric = np.zeros((num_labels))
-        for i in range(num_labels):
-            metric[i] = f1_score(label[:, i], np.round(prediction[:, i]))
-    return metric
+    ndim = np.ndim(label)  # 1D vs 2D input
+    if ndim == 1:  # single-column case
+        metric = np.array(f1_score(label, np.round(prediction)))  # threshold predictions at 0.5 (via rounding) and score F1
+    else:  # multi-label case
+        num_labels = label.shape[1]  # number of target columns
+        metric = np.zeros((num_labels))  # preallocate per-column F1 scores
+        for i in range(num_labels):  # score each column independently
+            metric[i] = f1_score(label[:, i], np.round(prediction[:, i]))  # F1 for this column's thresholded predictions
+    return metric  # scalar (1D input) or per-column array (2D input) of F1 scores
 
 
 def mcc_sc(label, prediction):
@@ -384,15 +384,15 @@ def mcc_sc(label, prediction):
             - Scalar array for 1D input.
             - Shape (K,) array for 2D input.
     """
-    ndim = np.ndim(label)
-    if ndim == 1:
-        metric = np.array(matthews_corrcoef(label, np.round(prediction)))
-    else:
-        num_labels = label.shape[1]
-        metric = np.zeros((num_labels))
-        for i in range(num_labels):
-            metric[i] = matthews_corrcoef(label[:, i], np.round(prediction[:, i]))
-    return metric
+    ndim = np.ndim(label)  # 1D vs 2D input
+    if ndim == 1:  # single-column case
+        metric = np.array(matthews_corrcoef(label, np.round(prediction)))  # threshold at 0.5 (via rounding) and compute MCC
+    else:  # multi-label case
+        num_labels = label.shape[1]  # number of target columns
+        metric = np.zeros((num_labels))  # preallocate per-column MCC scores
+        for i in range(num_labels):  # score each column independently
+            metric[i] = matthews_corrcoef(label[:, i], np.round(prediction[:, i]))  # MCC for this column's thresholded predictions
+    return metric  # scalar (1D input) or per-column array (2D input) of MCC scores
 
 
 def accuracy(label, prediction):
@@ -410,15 +410,15 @@ def accuracy(label, prediction):
             - Scalar array for 1D input.
             - Shape (K,) array for 2D input.
     """
-    ndim = np.ndim(label)
-    if ndim == 1:
-        metric = np.array(accuracy_score(label, np.round(prediction)))
-    else:
-        num_labels = label.shape[1]
-        metric = np.zeros((num_labels))
-        for i in range(num_labels):
-            metric[i] = accuracy_score(label[:, i], np.round(prediction[:, i]))
-    return metric
+    ndim = np.ndim(label)  # 1D vs 2D input
+    if ndim == 1:  # single-column case
+        metric = np.array(accuracy_score(label, np.round(prediction)))  # threshold at 0.5 (via rounding) and compute accuracy
+    else:  # multi-label case
+        num_labels = label.shape[1]  # number of target columns
+        metric = np.zeros((num_labels))  # preallocate per-column accuracy scores
+        for i in range(num_labels):  # score each column independently
+            metric[i] = accuracy_score(label[:, i], np.round(prediction[:, i]))  # accuracy for this column's thresholded predictions
+    return metric  # scalar (1D input) or per-column array (2D input) of accuracy scores
 
 
 def roc(label, prediction):
@@ -442,22 +442,22 @@ def roc(label, prediction):
         - Uses sklearn.metrics.roc_curve and auc.
         - For multi-label (2D), ROC is computed independently per label column.
     """
-    ndim = np.ndim(label)
-    if ndim == 1:
-        fpr, tpr, thresholds = roc_curve(label, prediction)
-        score = auc(fpr, tpr)
-        metric = np.array(score)
-        curves = [(fpr, tpr)]
-    else:
-        num_labels = label.shape[1]
-        curves = []
-        metric = np.zeros((num_labels))
-        for i in range(num_labels):
-            fpr, tpr, thresholds = roc_curve(label[:, i], prediction[:, i])
-            score = auc(fpr, tpr)
-            metric[i] = score
-            curves.append((fpr, tpr))
-    return metric, curves
+    ndim = np.ndim(label)  # 1D vs 2D input
+    if ndim == 1:  # single-column case
+        fpr, tpr, thresholds = roc_curve(label, prediction)  # false/true positive rates swept across score thresholds
+        score = auc(fpr, tpr)  # area under the ROC curve
+        metric = np.array(score)  # wrap as an array for a consistent return type with the 2D branch
+        curves = [(fpr, tpr)]  # single-element list of (fpr, tpr) curve points
+    else:  # multi-label case
+        num_labels = label.shape[1]  # number of target columns
+        curves = []  # accumulates per-column (fpr, tpr) curves
+        metric = np.zeros((num_labels))  # preallocate per-column ROC-AUC values
+        for i in range(num_labels):  # compute ROC independently per column
+            fpr, tpr, thresholds = roc_curve(label[:, i], prediction[:, i])  # curve points for this column
+            score = auc(fpr, tpr)  # ROC-AUC for this column
+            metric[i] = score  # store this column's AUC
+            curves.append((fpr, tpr))  # store this column's curve points
+    return metric, curves  # (AUC value(s), curve points) for downstream plotting/aggregation
 
 
 def pr(label, prediction):
@@ -477,22 +477,22 @@ def pr(label, prediction):
             curves:
                 List of (precision, recall) arrays, one per label dimension.
     """
-    ndim = np.ndim(label)
-    if ndim == 1:
-        precision, recall, thresholds = precision_recall_curve(label, prediction)
-        score = auc(recall, precision)
-        metric = np.array(score)
-        curves = [(precision, recall)]
-    else:
-        num_labels = label.shape[1]
-        curves = []
-        metric = np.zeros((num_labels))
-        for i in range(num_labels):
-            precision, recall, thresholds = precision_recall_curve(label[:, i], prediction[:, i])
-            score = auc(recall, precision)
-            metric[i] = score
-            curves.append((precision, recall))
-    return metric, curves
+    ndim = np.ndim(label)  # 1D vs 2D input
+    if ndim == 1:  # single-column case
+        precision, recall, thresholds = precision_recall_curve(label, prediction)  # precision/recall swept across score thresholds
+        score = auc(recall, precision)  # area under the precision-recall curve (x=recall, y=precision)
+        metric = np.array(score)  # wrap as an array for a consistent return type with the 2D branch
+        curves = [(precision, recall)]  # single-element list of (precision, recall) curve points
+    else:  # multi-label case
+        num_labels = label.shape[1]  # number of target columns
+        curves = []  # accumulates per-column (precision, recall) curves
+        metric = np.zeros((num_labels))  # preallocate per-column PR-AUC values
+        for i in range(num_labels):  # compute PR independently per column
+            precision, recall, thresholds = precision_recall_curve(label[:, i], prediction[:, i])  # curve points for this column
+            score = auc(recall, precision)  # PR-AUC for this column
+            metric[i] = score  # store this column's AUC
+            curves.append((precision, recall))  # store this column's curve points
+    return metric, curves  # (PR-AUC value(s), curve points) for downstream plotting/aggregation
 
 
 def tfnp(label, prediction):
@@ -514,11 +514,11 @@ def tfnp(label, prediction):
         - Any exception triggers a fallback (0,0,0,0).
     """
     try:
-        tn, fp, fn, tp = confusion_matrix(label, prediction).ravel()
-    except Exception:
-        tp, tn, fp, fn = 0, 0, 0, 0
+        tn, fp, fn, tp = confusion_matrix(label, prediction).ravel()  # sklearn's 2x2 confusion matrix, flattened in row-major order
+    except Exception:  # e.g. a single class present in this batch, confusion_matrix shape degenerates
+        tp, tn, fp, fn = 0, 0, 0, 0  # fall back to all-zero counts rather than raising
 
-    return tp, tn, fp, fn
+    return tp, tn, fp, fn  # confusion-matrix counts for this batch/column
 
 
 def calculate_metrics(label, prediction, objective):
@@ -571,60 +571,60 @@ def calculate_metrics(label, prediction, objective):
         - If label is 2D with shape (N,1), the function flattens to 1D before confusion counts.
         - Multi-label (2D) metrics are computed per column and aggregated with nanmean/nanstd.
     """
-    if (objective == "binary") | (objective == 'hinge'):
-        ndim = np.ndim(label)
-        correct = accuracy(label, prediction)
-        auc_roc, roc_curves = roc(label, prediction)
-        auc_pr, pr_curves = pr(label, prediction)
-        f1 = f1_sc(label, prediction)
-        mcc = mcc_sc(label, prediction)
-        if ndim == 2:
-            prediction = prediction[:, 0]
-            label = label[:, 0]
-        pred_class = prediction > 0.5
-        tp, tn, fp, fn = tfnp(label, pred_class)
-        mean = [np.nanmean(correct), np.nanmean(auc_roc), np.nanmean(auc_pr), np.nanmean(f1), np.nanmean(mcc), tp, tn, fp, fn]
-        std = [np.nanstd(correct), np.nanstd(auc_roc), np.nanstd(auc_pr), np.nanstd(f1), np.nanstd(mcc)]
+    if (objective == "binary") | (objective == 'hinge'):  # binary / multi-label binary classification path
+        ndim = np.ndim(label)  # remember whether label is 1D or 2D before it gets reduced below
+        correct = accuracy(label, prediction)  # per-column (or scalar) accuracy
+        auc_roc, roc_curves = roc(label, prediction)  # per-column (or scalar) ROC-AUC
+        auc_pr, pr_curves = pr(label, prediction)  # per-column (or scalar) PR-AUC
+        f1 = f1_sc(label, prediction)  # per-column (or scalar) F1 score
+        mcc = mcc_sc(label, prediction)  # per-column (or scalar) MCC
+        if ndim == 2:  # multi-label input: confusion counts are only computed for the first column
+            prediction = prediction[:, 0]  # reduce to the first target column
+            label = label[:, 0]  # reduce to the first target column
+        pred_class = prediction > 0.5  # hard binary decision at the 0.5 threshold (independent of np.round used elsewhere)
+        tp, tn, fp, fn = tfnp(label, pred_class)  # confusion-matrix counts for the (first) column
+        mean = [np.nanmean(correct), np.nanmean(auc_roc), np.nanmean(auc_pr), np.nanmean(f1), np.nanmean(mcc), tp, tn, fp, fn]  # aggregate mean metrics across columns, then append raw confusion counts
+        std = [np.nanstd(correct), np.nanstd(auc_roc), np.nanstd(auc_pr), np.nanstd(f1), np.nanstd(mcc)]  # aggregate std across columns for the scalar metrics only
 
-    elif objective == "categorical":
+    elif objective == "categorical":  # multi-class, one-hot labels / class-probability predictions
 
-        correct = np.mean(np.equal(np.argmax(label, axis=1), np.argmax(prediction, axis=1)))
-        auc_roc, roc_curves = roc(label, prediction)
-        auc_pr, pr_curves = pr(label, prediction)
-        mean = [np.nanmean(correct), np.nanmean(auc_roc), np.nanmean(auc_pr)]
-        std = [np.nanstd(correct), np.nanstd(auc_roc), np.nanstd(auc_pr)]
-        for i in range(label.shape[1]):
-            label_c, prediction_c = label[:, i], prediction[:, i]
-            auc_roc, roc_curves = roc(label_c, prediction_c)
-            mean.append(np.nanmean(auc_roc))
-            std.append(np.nanstd(auc_roc))
+        correct = np.mean(np.equal(np.argmax(label, axis=1), np.argmax(prediction, axis=1)))  # fraction of samples where the predicted argmax class matches the true class
+        auc_roc, roc_curves = roc(label, prediction)  # per-class ROC-AUC (one column per class)
+        auc_pr, pr_curves = pr(label, prediction)  # per-class PR-AUC (one column per class)
+        mean = [np.nanmean(correct), np.nanmean(auc_roc), np.nanmean(auc_pr)]  # macro-averaged accuracy/ROC-AUC/PR-AUC
+        std = [np.nanstd(correct), np.nanstd(auc_roc), np.nanstd(auc_pr)]  # corresponding macro std values
+        for i in range(label.shape[1]):  # then append each class's own ROC-AUC individually
+            label_c, prediction_c = label[:, i], prediction[:, i]  # this class's one-hot column and predicted probability
+            auc_roc, roc_curves = roc(label_c, prediction_c)  # recompute ROC restricted to this single class
+            mean.append(np.nanmean(auc_roc))  # append per-class AUC to the mean list
+            std.append(np.nanstd(auc_roc))  # append per-class AUC std to the std list
 
 
-    elif (objective == 'squared_error') | (objective == 'kl_divergence') | (objective == 'cdf'):
-        ndim = np.ndim(label)
-        label[label < 0.5] = 0
-        label[label >= 0.5] = 1
+    elif (objective == 'squared_error') | (objective == 'kl_divergence') | (objective == 'cdf'):  # regression-like objectives, evaluated via a binarized label
+        ndim = np.ndim(label)  # remember whether label is 1D or 2D before it gets reduced below
+        label[label < 0.5] = 0  # threshold the (continuous) label into a binary class...
+        label[label >= 0.5] = 1  # ...so classification metrics below are well-defined
 
-        correct = accuracy(label, prediction)
-        auc_roc, roc_curves = roc(label, prediction)
-        auc_pr, pr_curves = pr(label, prediction)
-        if ndim == 2:
-            prediction = prediction[:, 0]
-            label = label[:, 0]
-        pred_class = prediction > 0.5
-        tp, tn, fp, fn = tfnp(label, pred_class)
+        correct = accuracy(label, prediction)  # per-column (or scalar) accuracy against the thresholded label
+        auc_roc, roc_curves = roc(label, prediction)  # per-column (or scalar) ROC-AUC against the thresholded label
+        auc_pr, pr_curves = pr(label, prediction)  # per-column (or scalar) PR-AUC against the thresholded label
+        if ndim == 2:  # multi-label input: confusion counts only computed for the first column
+            prediction = prediction[:, 0]  # reduce to the first target column
+            label = label[:, 0]  # reduce to the first target column
+        pred_class = prediction > 0.5  # hard binary decision at the 0.5 threshold
+        tp, tn, fp, fn = tfnp(label, pred_class)  # confusion-matrix counts for the (first) column
 
         # squared_error
-        corr = pearsonr(label, prediction)
-        rsqr, slope = rsquare(label, prediction)
+        corr = pearsonr(label, prediction)  # Pearson correlation between (binarized) label and raw prediction
+        rsqr, slope = rsquare(label, prediction)  # no-intercept R^2 and slope between (binarized) label and raw prediction
 
         mean = [np.nanmean(correct), np.nanmean(auc_roc), np.nanmean(auc_pr), tp, tn, fp, fn, np.nanmean(corr),
-                np.nanmean(rsqr), np.nanmean(slope)]
+                np.nanmean(rsqr), np.nanmean(slope)]  # aggregate classification metrics, confusion counts, then regression-fit metrics
         std = [np.nanstd(correct), np.nanstd(auc_roc), np.nanstd(auc_pr), np.nanstd(corr), np.nanstd(rsqr),
-               np.nanstd(slope)]
+               np.nanstd(slope)]  # corresponding std values (confusion counts have no std since they're scalars)
 
-    else:
-        mean = 0
-        std = 0
+    else:  # unrecognized objective string
+        mean = 0  # sentinel value signaling "no metrics computed"
+        std = 0  # sentinel value signaling "no metrics computed"
 
-    return [mean, std]
+    return [mean, std]  # [mean metric vector, std metric vector], per the objective-specific layout documented above

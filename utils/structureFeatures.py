@@ -115,27 +115,27 @@ Important notes / caveats
 """
 
 
-import argparse
-import os
-import re
-import linecache
-import numpy as np
-from functools import reduce
-from collections import OrderedDict
-from typing import List
-import numpy as np
+import argparse  # unused in this module's current functions; kept for CLI-style extension
+import os  # directory creation and file-existence checks for the RNAplfold cache
+import re  # normalizes whitespace when parsing profile text lines
+import linecache  # bulk-reads the combined profile file into memory line by line
+import numpy as np  # builds and reshapes the numeric structure tensors
+from functools import reduce  # folds a list of values into a tab-delimited string
+from collections import OrderedDict  # preserves base-to-vector encoding order (unused directly by build_structure_tensor)
+from typing import List  # type hint for build_structure_tensor's input
+import numpy as np  # duplicate import, kept as-is (harmless)
 
 encoding_seq = OrderedDict([
-    ('UNK', [0, 0, 0, 0]),
-    ('A', [1, 0, 0, 0]),
-    ('C', [0, 1, 0, 0]),
-    ('G', [0, 0, 1, 0]),
-    ('T', [0, 0, 0, 1]),
-    ('N', [0.25, 0.25, 0.25, 0.25]),
+    ('UNK', [0, 0, 0, 0]),  # unknown/placeholder base: all-zero one-hot
+    ('A', [1, 0, 0, 0]),  # adenine one-hot code
+    ('C', [0, 1, 0, 0]),  # cytosine one-hot code
+    ('G', [0, 0, 1, 0]),  # guanine one-hot code
+    ('T', [0, 0, 0, 1]),  # thymine one-hot code
+    ('N', [0.25, 0.25, 0.25, 0.25]),  # ambiguous base: uniform probability over the 4 bases
 ])
 
-seq_encoding_keys = list(encoding_seq.keys())
-seq_encoding_vectors = np.array(list(encoding_seq.values()))
+seq_encoding_keys = list(encoding_seq.keys())  # ordered list of base symbols, e.g. for index lookups
+seq_encoding_vectors = np.array(list(encoding_seq.values()))  # matching one-hot/uniform vectors as a NumPy array
 
 
 def mk_dir(dir):
@@ -143,16 +143,16 @@ def mk_dir(dir):
     Create a directory.
     """
     try:
-        os.makedirs(dir)
+        os.makedirs(dir)  # create the directory (and any missing parents)
     except OSError:
-        print('Can not make directory:', dir)
+        print('Can not make directory:', dir)  # directory likely already exists; log and continue rather than crash
 
 
 def list_to_str(lst):
     '''
     Convert a list of values into a tab-delimited string.
     '''
-    return reduce((lambda s, f: s + '\t' + str(f)), lst, '')
+    return reduce((lambda s, f: s + '\t' + str(f)), lst, '')  # fold every value onto the accumulator string, tab-separated
 
 
 def concatenate(pairedness, hairpin_loop, internal_loop, multi_loop, external_region):
@@ -181,8 +181,8 @@ def concatenate(pairedness, hairpin_loop, internal_loop, multi_loop, external_re
         - All input tracks are assumed to have the same token length L.
     """
     combine_list = [pairedness.split(), hairpin_loop.split(), internal_loop.split(), multi_loop.split(),
-                    external_region.split()]
-    return np.array(combine_list).T
+                    external_region.split()]  # tokenize each whitespace-delimited track into a list of strings
+    return np.array(combine_list).T  # stack tracks as columns and transpose to (L, 5) position-major layout
 
 
 def defineExperimentPaths(basic_path, name_id):
@@ -203,16 +203,16 @@ def defineExperimentPaths(basic_path, name_id):
         Tuple[str, str, str, str, str]:
             (path, E_path, H_path, I_path, M_path), each ending with '/'.
     """
-    path = basic_path + str(name_id) + '/'
-    E_path = basic_path + str(name_id) + '/E/'
-    H_path = basic_path + str(name_id) + '/H/'
-    I_path = basic_path + str(name_id) + '/I/'
-    M_path = basic_path + str(name_id) + '/M/'
-    mk_dir(E_path)
-    mk_dir(H_path)
-    mk_dir(I_path)
-    mk_dir(M_path)
-    return path, E_path, H_path, I_path, M_path
+    path = basic_path + str(name_id) + '/'  # root directory for this dataset's cached profiles
+    E_path = basic_path + str(name_id) + '/E/'  # external-region profile output directory
+    H_path = basic_path + str(name_id) + '/H/'  # hairpin-loop profile output directory
+    I_path = basic_path + str(name_id) + '/I/'  # internal-loop profile output directory
+    M_path = basic_path + str(name_id) + '/M/'  # multi-loop profile output directory
+    mk_dir(E_path)  # ensure the E subdirectory exists
+    mk_dir(H_path)  # ensure the H subdirectory exists
+    mk_dir(I_path)  # ensure the I subdirectory exists
+    mk_dir(M_path)  # ensure the M subdirectory exists
+    return path, E_path, H_path, I_path, M_path  # all five paths, for run_RNA and generateStructureFeatures to write into
 
 
 def read_combined_profile(file_path):
@@ -246,21 +246,21 @@ def read_combined_profile(file_path):
         - Whitespace is normalized with `re.sub('[\\s+]', ' ', ...)` before splitting.
         - Assumes every record is exactly 6 lines and all profile lines have equal token length.
     """
-    i = 0
-    secondary_structure_list = []
-    filelines = linecache.getlines(file_path)
-    file_length = len(filelines)
-    while i <= file_length - 1:
-        pairedness = re.sub('[\s+]', ' ', filelines[i + 1].strip())
-        hairpin_loop = re.sub('[\s+]', ' ', filelines[i + 2].strip())
-        internal_loop = re.sub('[\s+]', ' ', filelines[i + 3].strip())
-        multi_loop = re.sub('[\s+]', ' ', filelines[i + 4].strip())
-        external_region = re.sub('[\s+]', ' ', filelines[i + 5].strip())
-        combine_array = concatenate(pairedness, hairpin_loop, internal_loop, multi_loop, external_region)
-        secondary_structure_list.append(combine_array)
-        i = i + 6
+    i = 0  # index of the current 6-line block's identifier line
+    secondary_structure_list = []  # accumulates one (L, 5) array per record
+    filelines = linecache.getlines(file_path)  # read the whole combined-profile file into memory as a list of lines
+    file_length = len(filelines)  # total number of lines, used to bound the block loop
+    while i <= file_length - 1:  # iterate one 6-line record block at a time
+        pairedness = re.sub('[\s+]', ' ', filelines[i + 1].strip())  # normalize whitespace in the P track line
+        hairpin_loop = re.sub('[\s+]', ' ', filelines[i + 2].strip())  # normalize whitespace in the H track line
+        internal_loop = re.sub('[\s+]', ' ', filelines[i + 3].strip())  # normalize whitespace in the I track line
+        multi_loop = re.sub('[\s+]', ' ', filelines[i + 4].strip())  # normalize whitespace in the M track line
+        external_region = re.sub('[\s+]', ' ', filelines[i + 5].strip())  # normalize whitespace in the E track line
+        combine_array = concatenate(pairedness, hairpin_loop, internal_loop, multi_loop, external_region)  # merge the 5 tracks into one (L, 5) array
+        secondary_structure_list.append(combine_array)  # keep this record's array
+        i = i + 6  # advance to the next 6-line block
 
-    return np.array(secondary_structure_list).astype(float)
+    return np.array(secondary_structure_list).astype(float)  # stack all records into (N, L, 5) and cast to float
 
 
 # def definecombinePaths(basic_path, name_id):
@@ -310,16 +310,16 @@ def run_RNA(fasta_path, script_path, E_path, H_path, I_path, M_path, W, L, u):
     """
     os.system(
         script_path + '/E_RNAplfold -W ' + str(W) + ' -L ' + str(L) + ' -u ' + str(u) + ' <' + fasta_path + ' ' + '>' +
-        E_path + 'E_profile.txt')
+        E_path + 'E_profile.txt')  # shell out to the external-region RNAplfold wrapper, writing E_profile.txt
     os.system(
         script_path + '/H_RNAplfold -W ' + str(W) + ' -L ' + str(L) + ' -u ' + str(u) + ' <' + fasta_path + ' ' + '>' +
-        H_path + 'H_profile.txt')
+        H_path + 'H_profile.txt')  # shell out to the hairpin-loop RNAplfold wrapper, writing H_profile.txt
     os.system(
         script_path + '/I_RNAplfold -W ' + str(W) + ' -L ' + str(L) + ' -u ' + str(u) + ' <' + fasta_path + ' ' + '>' +
-        I_path + 'I_profile.txt')
+        I_path + 'I_profile.txt')  # shell out to the internal-loop RNAplfold wrapper, writing I_profile.txt
     os.system(
         script_path + '/M_RNAplfold -W ' + str(W) + ' -L ' + str(L) + ' -u ' + str(u) + ' <' + fasta_path + ' ' + '>' +
-        M_path + 'M_profile.txt')
+        M_path + 'M_profile.txt')  # shell out to the multi-loop RNAplfold wrapper, writing M_profile.txt
 
 
 def generateStructureFeatures(dataset_path, script_path, basic_path, W, L, u, dataset_name=''):
@@ -362,43 +362,43 @@ def generateStructureFeatures(dataset_path, script_path, basic_path, W, L, u, da
           assuming the four probabilities sum to <= 1 per position.
     """
     path, E_path, H_path, I_path, M_path = defineExperimentPaths(
-        basic_path, dataset_name)
-    if not os.path.exists(basic_path+'/combined_profile.txt'):
-        run_RNA(dataset_path, script_path, E_path, H_path, I_path, M_path, W=W, L=L, u=u)
-        fEprofile = open(E_path + 'E_profile.txt')
-        Eprofiles = fEprofile.readlines()
+        basic_path, dataset_name)  # create/locate the per-channel output directories for this dataset
+    if not os.path.exists(basic_path+'/combined_profile.txt'):  # only regenerate if the (mismatched-path) cache marker is absent
+        run_RNA(dataset_path, script_path, E_path, H_path, I_path, M_path, W=W, L=L, u=u)  # invoke RNAplfold wrappers to produce the 4 raw profile files
+        fEprofile = open(E_path + 'E_profile.txt')  # open the external-region profile output
+        Eprofiles = fEprofile.readlines()  # read all lines (id + probability line pairs) for E
 
-        fHprofile = open(H_path + 'H_profile.txt')
-        Hprofiles = fHprofile.readlines()
+        fHprofile = open(H_path + 'H_profile.txt')  # open the hairpin-loop profile output
+        Hprofiles = fHprofile.readlines()  # read all lines for H
 
-        fIprofile = open(I_path + 'I_profile.txt')
-        Iprofiles = fIprofile.readlines()
+        fIprofile = open(I_path + 'I_profile.txt')  # open the internal-loop profile output
+        Iprofiles = fIprofile.readlines()  # read all lines for I
 
-        fMprofile = open(M_path + 'M_profile.txt')
-        Mprofiles = fMprofile.readlines()
+        fMprofile = open(M_path + 'M_profile.txt')  # open the multi-loop profile output
+        Mprofiles = fMprofile.readlines()  # read all lines for M
 
-        mw = int(1)
+        mw = int(1)  # minimum window offset; used to trim the first (mw-1) positions from each track
 
-        fhout = open(path + 'combined_profile.txt', 'w')
+        fhout = open(path + 'combined_profile.txt', 'w')  # output file that will hold the merged 6-line-per-record profile
 
-        for i in range(0, int(len(Eprofiles) / 2)):
-            id = Eprofiles[i * 2].split()[0]
-            print(id, file=fhout)
-            E_prob = Eprofiles[i * 2 + 1].split()
-            H_prob = Hprofiles[i * 2 + 1].split()
-            I_prob = Iprofiles[i * 2 + 1].split()
-            M_prob = Mprofiles[i * 2 + 1].split()
+        for i in range(0, int(len(Eprofiles) / 2)):  # each record occupies 2 lines (id, probabilities) in every profile file
+            id = Eprofiles[i * 2].split()[0]  # this record's identifier, taken from the E profile's id line
+            print(id, file=fhout)  # write the identifier line for this record
+            E_prob = Eprofiles[i * 2 + 1].split()  # this record's external-region probabilities, one token per position
+            H_prob = Hprofiles[i * 2 + 1].split()  # this record's hairpin-loop probabilities
+            I_prob = Iprofiles[i * 2 + 1].split()  # this record's internal-loop probabilities
+            M_prob = Mprofiles[i * 2 + 1].split()  # this record's multi-loop probabilities
             P_prob = list(
-                map((lambda a, b, c, d: 1 - float(a) - float(b) - float(c) - float(d)), E_prob, H_prob, I_prob, M_prob))
-            print(list_to_str(P_prob[mw - 1:len(P_prob)]), file=fhout)
-            print(list_to_str(E_prob[mw - 1:len(P_prob)]), file=fhout)
-            print(list_to_str(H_prob[mw - 1:len(P_prob)]), file=fhout)
-            print(list_to_str(I_prob[mw - 1:len(P_prob)]), file=fhout)
-            print(list_to_str(M_prob[mw - 1:len(P_prob)]), file=fhout)
-        fhout.close()
+                map((lambda a, b, c, d: 1 - float(a) - float(b) - float(c) - float(d)), E_prob, H_prob, I_prob, M_prob))  # derive pairedness as the residual probability mass not accounted for by E/H/I/M
+            print(list_to_str(P_prob[mw - 1:len(P_prob)]), file=fhout)  # write the (possibly trimmed) pairedness track
+            print(list_to_str(E_prob[mw - 1:len(P_prob)]), file=fhout)  # write the (possibly trimmed) external-region track
+            print(list_to_str(H_prob[mw - 1:len(P_prob)]), file=fhout)  # write the (possibly trimmed) hairpin-loop track
+            print(list_to_str(I_prob[mw - 1:len(P_prob)]), file=fhout)  # write the (possibly trimmed) internal-loop track
+            print(list_to_str(M_prob[mw - 1:len(P_prob)]), file=fhout)  # write the (possibly trimmed) multi-loop track
+        fhout.close()  # flush and close the combined profile file
 
-    features = read_combined_profile(path + 'combined_profile.txt')
-    return features
+    features = read_combined_profile(path + 'combined_profile.txt')  # parse the (now-guaranteed-to-exist) combined profile into a tensor
+    return features  # (N, L, 5) structure feature tensor for this dataset
 
 
 def build_structure_tensor(structs: List[str], max_length: int) -> np.ndarray:
@@ -424,10 +424,10 @@ def build_structure_tensor(structs: List[str], max_length: int) -> np.ndarray:
         ValueError or broadcasting error:
             If the number of values is not equal to `max_length` (assignment will fail).
     """
-    structure = np.zeros((len(structs), 1, max_length))
-    for i in range(len(structs)):
-        struct = structs[i].split(',')
-        ti = [float(t) for t in struct]
-        ti = np.array(ti).reshape(1, -1)
-        structure[i] = np.concatenate([ti], axis=0)
-    return structure
+    structure = np.zeros((len(structs), 1, max_length))  # preallocate the output tensor: one row per sequence, single structure channel
+    for i in range(len(structs)):  # process each sequence's structure string independently
+        struct = structs[i].split(',')  # split the comma-separated reactivity/score string into tokens
+        ti = [float(t) for t in struct]  # parse each token to a float structure value
+        ti = np.array(ti).reshape(1, -1)  # reshape to (1, max_length) to match the single-channel layout
+        structure[i] = np.concatenate([ti], axis=0)  # write this sequence's channel into the preallocated tensor
+    return structure  # (N, 1, max_length) padded/parsed structure tensor

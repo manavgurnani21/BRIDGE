@@ -1,27 +1,20 @@
-import os
-import random
-import argparse
-import subprocess
-from pathlib import Path
-import time
-from datetime import datetime
-import json
+import os  # OS path/environment utilities (file existence checks, env vars, path joins)
+import random  # Python's stdlib PRNG, seeded for reproducibility
+import argparse  # CLI argument parsing
+import subprocess  # imported but unused here; kept for parity with original script
+from pathlib import Path  # object-oriented filesystem path handling used for run directories
+import time  # wall-clock timing of the training run
+from datetime import datetime  # timestamping run names
+import json  # writing config/metrics summaries to disk
 
-import numpy as np
-import torch
-import torch.nn as nn
-import torch.utils.data
-from torch.utils.data import DataLoader
-from torch.optim.lr_scheduler import OneCycleLR, CosineAnnealingLR
+import numpy as np  # numerical arrays; also seeded for reproducibility
+import torch  # PyTorch core (tensors, autograd, CUDA control)
+import torch.nn as nn  # neural network building blocks (loss functions, layers)
 
-from utils.gen_transformer_embedding import build_Transformer_embeddings
-from utils.motif_prior.motif_prior import get_motif_prior_matrix
-from utils.BRIDGE import BRIDGE
-from utils.train_loop import train, validate
-from utils.utils import myDataset, param_num, split_dataset, resolve_dynamic_model_name
-from utils.structureFeatures import build_structure_tensor
-from utils.FeatureEncoding import dealwithdata
-from utils.dataloaders import read_fasta
+from utils.BRIDGE import BRIDGE  # the BRIDGE model class (RNA+protein multimodal architecture)
+from utils.train_loop import validate, fit_bridge  # shared training/eval loop: fit_bridge trains+early-stops, validate scores a loader
+from utils.utils import param_num, resolve_dynamic_model_name  # param_num prints model size; resolve_dynamic_model_name maps a dataset id to a cross-condition checkpoint name
+from utils.data_pipeline import build_split_loaders  # builds train/val/test DataLoaders from raw dataset files (embeddings + features computed once)
 
 
 def log_print(text, color=None, on_color=None, attrs=None):
@@ -48,21 +41,21 @@ def log_print(text, color=None, on_color=None, attrs=None):
 
     # Attempt to import termcolor for colored terminal output
     try:
-        from termcolor import cprint
+        from termcolor import cprint  # optional dependency providing colored console printing
     except ImportError:
-        cprint = None
-        
+        cprint = None  # termcolor not installed; fall back to plain print below
+
     # Attempt to import pycrayon (optional; not required for basic printing)
     try:
-        from pycrayon import CrayonClient
+        from pycrayon import CrayonClient  # optional dependency, not actually used beyond the import
     except ImportError:
-        CrayonClient = None
-        
+        CrayonClient = None  # pycrayon not installed; harmless since it's unused
+
     # Use colored printing if available; otherwise fall back to plain print
     if cprint is not None:
-        cprint(text, color=color, on_color=on_color, attrs=attrs)
+        cprint(text, color=color, on_color=on_color, attrs=attrs)  # print with requested color/background/attributes
     else:
-        print(text)
+        print(text)  # no color support available; print plain text
 
 
 def fix_seed(seed):
@@ -70,13 +63,13 @@ def fix_seed(seed):
     Seed all necessary random number generators.
     """
     if seed is None:
-        seed = random.randint(1, 10000)
+        seed = random.randint(1, 10000)  # no seed given: pick a random one so the run is still reproducible if logged
     torch.set_num_threads(1)  # Suggested for issues with deadlocks, etc.
-    random.seed(seed)
-    os.environ['PYTHONHASHSEED'] = str(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
+    random.seed(seed)  # seed Python's random module (used for e.g. shuffling)
+    os.environ['PYTHONHASHSEED'] = str(seed)  # fix hash seed so hash-based iteration order is reproducible across runs
+    np.random.seed(seed)  # seed NumPy's legacy global RNG
+    torch.manual_seed(seed)  # seed PyTorch's CPU RNG
+    torch.cuda.manual_seed(seed)  # seed PyTorch's CUDA RNG for the current device
     torch.cuda.manual_seed_all(seed)  # if using multi-GPU.
 
 
@@ -90,20 +83,20 @@ def _prepare_run_dirs(args, file_name: str):
     - metrics-> {results_dir}/metrics
     - model  -> args.model_save_path if provided and not default-empty, else {results_dir}/model
     """
-    results_dir = Path(getattr(args, "results_dir", "./results"))
-    logs_dir = results_dir/"logs"
-    metrics_dir = results_dir/"metrics"
+    results_dir = Path(getattr(args, "results_dir", "./results"))  # root output directory (default ./results, overridable via --results_dir)
+    logs_dir = results_dir/"logs"  # subdirectory for per-run log files
+    metrics_dir = results_dir/"metrics"  # subdirectory for best-metric JSON summaries
 
     # If user passed --model_save_path, prefer it; otherwise use results_dir/model
-    model_dir = Path(getattr(args, "model_save_path", "")) if getattr(args, "model_save_path", "") else (results_dir / "model")
+    model_dir = Path(getattr(args, "model_save_path", "")) if getattr(args, "model_save_path", "") else (results_dir / "model")  # checkpoint output directory
 
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    metrics_dir.mkdir(parents=True, exist_ok=True)
-    model_dir.mkdir(parents=True, exist_ok=True)
+    logs_dir.mkdir(parents=True, exist_ok=True)  # create logs dir (and parents) if missing
+    metrics_dir.mkdir(parents=True, exist_ok=True)  # create metrics dir (and parents) if missing
+    model_dir.mkdir(parents=True, exist_ok=True)  # create model checkpoint dir (and parents) if missing
 
-    run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
-    run_name = f"{file_name}_{run_id}"
-    return run_name, logs_dir, model_dir, metrics_dir
+    run_id = datetime.now().strftime("%Y%m%d-%H%M%S")  # timestamp used to make each run's outputs unique
+    run_name = f"{file_name}_{run_id}"  # unique run identifier combining dataset name and timestamp
+    return run_name, logs_dir, model_dir, metrics_dir  # hand back the resolved paths/name for use in main()
 
 
 def main(args):
@@ -148,248 +141,163 @@ def main(args):
 
     # Fix random seeds for reproducibility across runs
     fix_seed(args.seed)
-    
+
     # Select computation device (CPU or specific CUDA device)
     if args.use_cpu:
-        device = torch.device("cpu")
+        device = torch.device("cpu")  # force CPU execution regardless of GPU availability
     else:
-        device = torch.device(f"cuda:{args.device_num}" if torch.cuda.is_available() else "cpu")
-        
+        device = torch.device(f"cuda:{args.device_num}" if torch.cuda.is_available() else "cpu")  # use requested GPU if available, else fall back to CPU
+
     # Explicitly set the CUDA device if GPU is used
     if device.type == 'cuda':
-        torch.cuda.set_device(args.device_num)
+        torch.cuda.set_device(args.device_num)  # make this the active CUDA device for subsequent tensor allocations
 
     # Maximum sequence length used for padding/truncation
     max_length = 101
-    
+
     # Dataset identifier and base data directory
-    file_name = args.data_file
-    data_path = args.data_path
-    Transformer_batch_size = args.batch_size
+    file_name = args.data_file  # which RBP/dataset to train or evaluate on
+    data_path = args.data_path  # root directory containing the dataset files
+    Transformer_batch_size = args.batch_size  # batch size used when running the pretrained transformer to extract embeddings
 
     if args.train:
         # Start timing the full training procedure
-        start_time = time.time()
+        start_time = time.time()  # record wall-clock start time for reporting total training duration
 
         # prepare run dirs + open logfile
-        run_name, logs_dir, model_dir, metrics_dir = _prepare_run_dirs(args, file_name)
-        log_path = logs_dir / f"{run_name}.log"
-        log_fp = open(log_path, "a", encoding="utf-8")
+        run_name, logs_dir, model_dir, metrics_dir = _prepare_run_dirs(args, file_name)  # create/resolve output directories for this run
+        log_path = logs_dir / f"{run_name}.log"  # path to this run's plain-text log file
+        log_fp = open(log_path, "a", encoding="utf-8")  # open the log file for appending
 
         def log_both(msg: str, color=None, attrs=None):
             # write to file
-            log_fp.write(msg + "\n")
-            log_fp.flush()
+            log_fp.write(msg + "\n")  # persist the message to the run's log file
+            log_fp.flush()  # ensure the message is written to disk immediately (useful if the run crashes)
             # print to console
-            log_print(msg, color=color, attrs=attrs)
+            log_print(msg, color=color, attrs=attrs)  # also print the message to stdout with optional coloring
 
         # Write config file (args + key hyperparams)
         config = {
-            "run_name": run_name,
-            "data_file": args.data_file,
-            "data_path": args.data_path,
-            "Transformer_path": args.Transformer_path,
-            "seed": args.seed,
-            "use_cpu": bool(args.use_cpu),
-            "device": str(device),
-            "device_num": int(args.device_num),
-            "train": bool(args.train),
-            "validate": bool(getattr(args, "validate", False)),
-            "dynamic_predict": bool(getattr(args, "dynamic_predict", False)),
-            "max_length": int(max_length),
-            "lr_cli": float(args.lr),
-            "early_stopping": int(args.early_stopping)
+            "run_name": run_name,  # unique identifier for this run
+            "data_file": args.data_file,  # dataset/RBP identifier used
+            "data_path": args.data_path,  # root data directory used
+            "Transformer_path": args.Transformer_path,  # path to the pretrained transformer used for embeddings
+            "seed": args.seed,  # random seed used for this run
+            "use_cpu": bool(args.use_cpu),  # whether CPU-only execution was forced
+            "device": str(device),  # resolved torch device string (e.g. "cuda:0" or "cpu")
+            "device_num": int(args.device_num),  # requested GPU index
+            "train": bool(args.train),  # whether training mode was requested
+            "validate": bool(getattr(args, "validate", False)),  # whether validate mode was also requested
+            "dynamic_predict": bool(getattr(args, "dynamic_predict", False)),  # whether dynamic-predict mode was also requested
+            "max_length": int(max_length),  # sequence length used for padding/truncation
+            "lr_cli": float(args.lr),  # learning rate passed on the command line
+            "early_stopping": int(args.early_stopping)  # early-stopping patience in epochs
         }
 
 
-        # Construct paths to positive and negative FASTA files
-        neg_path = os.path.join(data_path, file_name + '_neg.fa')
-        pos_path = os.path.join(data_path, file_name + '_pos.fa')
-        
-        # Load nucleotide sequences, secondary structure annotations, and labels
-        sequences, structs, label = read_fasta(neg_path, pos_path)
-        
-        # Generate sequence embeddings and attention maps using RBPformer
-        Transformer_emb, attention_weight = build_Transformer_embeddings(
-            sequences=list(sequences),
-            transformer_path=args.Transformer_path,
-            device=device,
-            k=1,
-            transpose_to_ch_first=True,
-            Transformer_batch_size=Transformer_batch_size
+        # Build train/val/test loaders (features computed once via the shared pipeline).
+        # Early stopping + checkpoint selection watch the validation set; the sealed test
+        # split is left untouched here and reserved for --validate / --dynamic_predict.
+        train_loader, val_loader, _ = build_split_loaders(
+            data_file=file_name,  # dataset identifier to load
+            data_path=data_path,  # root directory containing the dataset files
+            transformer_path=args.Transformer_path,  # pretrained transformer used to embed RNA sequences
+            device=device,  # device on which embeddings/features are computed
+            seed=args.seed,  # seed controlling the train/val/test split
+            max_length=max_length,  # sequence length used for padding/truncation
+            transformer_batch_size=Transformer_batch_size,  # batch size for transformer embedding extraction
         )
-        
-        # Convert structural annotations into a fixed-length tensor representation
-        structure = build_structure_tensor(structs, max_length)
-        
-        # Load and format biochemical feature tensors
-        biochem = dealwithdata(args.data_file).transpose([0, 2, 1])
-        
-        # Load motif prior matrix encoding known RBP binding preferences
-        motif = get_motif_prior_matrix(args.data_file)
-
-        # Split all feature modalities and labels into train / validation / test sets.
-        # The test partition is sealed here: it is never observed during training or
-        # model selection, and is reserved for --validate / --dynamic_predict.
-        [train_emb, train_attn, train_struc, train_motif, train_biochem, train_label], \
-        [val_emb, val_attn, val_struc, val_motif, val_biochem, val_label], \
-        [test_emb, test_attn, test_struc, test_motif, test_biochem, test_label] = split_dataset(
-            Transformer_emb,
-            attention_weight,
-            structure,
-            motif,
-            biochem,
-            label
-        )
-
-        # Wrap tensors into custom Dataset objects. Early stopping and checkpoint
-        # selection watch the validation set; the test set is left untouched.
-        train_set = myDataset(train_emb, train_attn, train_struc, train_motif, train_biochem, train_label)
-        val_set = myDataset(val_emb, val_attn, val_struc, val_motif, val_biochem, val_label)
-
-        # Create DataLoaders for mini-batch training and evaluation
-        train_loader = DataLoader(train_set, batch_size=32, shuffle=True)
-        val_loader = DataLoader(val_set, batch_size=32 * 8, shuffle=False)
-        
         # Initialize the BRIDGE model
-        model = BRIDGE().to(device)
-        
+        model = BRIDGE().to(device)  # construct the BRIDGE architecture and move its parameters to the target device
+
         # Binary classification loss with class imbalance compensation
-        criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(2))
-        
+        criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(2))  # binary cross-entropy with logits; positive class weighted 2x to offset class imbalance
+
         # Adam optimizer with weight decay regularization
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.999), weight_decay=1e-6)
-        
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.999), weight_decay=1e-6)  # Adam optimizer over all model parameters
+
         # Learning rate scheduling parameters
-        initial_lrate = 0.0016
-        drop = 0.8
-        epochs_drop = 5.0
-        warmup_epochs = 40
-        lrs = []
-        
+        initial_lrate = 0.0016  # LR used once warmup completes, before step decay begins
+        drop = 0.8  # multiplicative factor applied to LR at each decay step
+        epochs_drop = 5.0  # number of epochs between successive LR decay steps
+        warmup_epochs = 40  # number of initial epochs during which LR is linearly warmed up
+
         # include schedule/loss/optimizer info in config
         config.update(
             {
                 "lr_schedule": {
-                    "initial_lrate": float(initial_lrate),
-                    "drop": float(drop),
-                    "epochs_drop": float(epochs_drop),
-                    "warmup_epochs": int(warmup_epochs),
+                    "initial_lrate": float(initial_lrate),  # record post-warmup base LR
+                    "drop": float(drop),  # record decay factor
+                    "epochs_drop": float(epochs_drop),  # record decay interval
+                    "warmup_epochs": int(warmup_epochs),  # record warmup duration
                 }
             }
         )
 
-        config_path = logs_dir / f"{run_name}_config.json"
+        config_path = logs_dir / f"{run_name}_config.json"  # path where this run's config snapshot is saved
         with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(config, f, indent=2)
+            json.dump(config, f, indent=2)  # persist the full run configuration as pretty-printed JSON
 
-        log_both(f"[RUN] {run_name}", color="green", attrs=["bold"])
-        log_both(f"[DIR] logs={logs_dir} model={model_dir} metrics={metrics_dir}")
-        log_both(f"[CFG] {config_path}")
-        
-        # Track best validation metrics for model selection
-        best_auc = 0
-        best_acc = 0
-        best_mcc = 0
-        best_prc = 0
-        best_epoch = 0
-        early_stopping = args.early_stopping
-        
+        log_both(f"[RUN] {run_name}", color="green", attrs=["bold"])  # announce the run name in the log/console
+        log_both(f"[DIR] logs={logs_dir} model={model_dir} metrics={metrics_dir}")  # record where outputs are being written
+        log_both(f"[CFG] {config_path}")  # record where the config snapshot was saved
+
         # Print total number of model parameters
-        param_num(model)
-        
-        ## Directory for saving trained model checkpoints
-        # model_save_path = args.model_save_path
-        # if not os.path.exists(model_save_path):
-        #     os.makedirs(model_save_path)
-        
-        # Training loop
-        for epoch in range(1, 201):
-            # Perform one epoch of training
-            t_met = train(model, device, train_loader, criterion, optimizer, batch_size=32)
+        param_num(model)  # log the parameter count of the BRIDGE model for reference
 
-            # Evaluate model on the validation set (drives early stopping + checkpointing)
-            v_met, _, _ = validate(model, device, val_loader, criterion)
+        # Train with the shared loop: warm-up + step-decay LR, val-AUC checkpoint selection,
+        # and early stopping. The best checkpoint is saved to {model_dir}/{run_name}.pth.
+        best = fit_bridge(
+            model, device, train_loader, val_loader, criterion, optimizer,
+            max_epochs=200,  # upper bound on training epochs (early stopping usually halts sooner)
+            warmup_epochs=warmup_epochs,  # epochs of LR warmup before decay schedule kicks in
+            initial_lrate=initial_lrate,  # base LR after warmup
+            drop=drop,  # step-decay multiplicative factor
+            epochs_drop=epochs_drop,  # step-decay interval in epochs
+            early_stopping=args.early_stopping,  # patience (epochs without val-AUC improvement) before stopping
+            ckpt_path=model_dir / f"{run_name}.pth",  # where to save the best checkpoint found during training
+            log_fn=lambda m: log_both(m, color="green", attrs=["bold"]),  # callback used by fit_bridge to emit per-epoch logs
+            tag=file_name,  # dataset tag used in log messages
+        )
+        best_auc = best["best_val_auc"]  # best validation ROC-AUC achieved during training
+        best_acc = best["best_val_acc"]  # validation accuracy at the best checkpoint
+        best_mcc = best["best_val_mcc"]  # validation Matthews correlation coefficient at the best checkpoint
+        best_prc = best["best_val_prc"]  # validation PR-AUC at the best checkpoint
+        best_epoch = best["best_epoch"]  # epoch index at which the best checkpoint was recorded
 
-            # Warm-up followed by step-wise exponential learning rate decay
-            if epoch <= warmup_epochs:
-                lr = 0.001 * (1.6 * epoch / warmup_epochs)
-            else:
-                import math
-                lr = initial_lrate * math.pow(
-                    drop, math.floor((epoch - warmup_epochs) / epochs_drop)
-                )
-
-            # Update optimizer learning rate
-            for param_group in optimizer.param_groups:
-                param_group['lr'] = lr
-            lrs.append(lr)
-
-            color_best = 'green'
-
-            # Save model checkpoint if validation AUC improves
-            if best_auc < v_met.auc:
-                best_auc = v_met.auc
-                best_acc = v_met.acc
-                best_mcc = v_met.mcc
-                best_prc = v_met.prc
-                best_epoch = epoch
-                color_best = 'red'
-                # path_name = os.path.join(model_save_path, file_name+'.pth')
-                # torch.save(model.state_dict(), path_name)
-                ckpt_path = model_dir / f"{run_name}.pth"
-                torch.save(model.state_dict(), ckpt_path)
-                
-            # Early stopping based on validation performance
-            if epoch - best_epoch > early_stopping:
-                print("Early stop at %d, %s " % (epoch, 'BRIDGE'))
-                break
-            
-            # Log training metrics
-            line = '{} \t Train Epoch: {}     avg.loss: {:.4f} Acc: {:.2f}%, AUC: {:.4f}, PRC: {:.4f}, MCC: {:.4f}, lr: {:.6f}'.format(
-                file_name, epoch, t_met.other[0], t_met.acc, t_met.auc, t_met.prc, t_met.mcc, lr)
-            # log_print(line, color='green', attrs=['bold'])
-            log_both(line, color="green", attrs=["bold"])
-            
-            # Log validation metrics and best epoch so far
-            line = '{} \t Test  Epoch: {}     avg.loss: {:.4f} Acc: {:.2f}%, AUC: {:.4f} ({:.4f}), PRC: {:.4f}, MCC: {:.4f}, {}'.format(
-                file_name, epoch, v_met.other[0], v_met.acc, v_met.auc, best_auc, v_met.prc, v_met.mcc, best_epoch)
-            # log_print(line, color=color_best, attrs=['bold'])
-            log_both(line, color=color_best, attrs=["bold"])
-        
         # Report best validation performance
         # print("{} auc: {:.4f} acc: {:.4f} prc: {:.4f} mcc: {:.4f}".format(file_name, best_auc, best_acc, best_prc, best_mcc))
         summary_line = (
-            f"{file_name} best: auc={best_auc:.4f} acc={best_acc:.4f} prc={best_prc:.4f} mcc={best_mcc:.4f} "
-            f"(epoch={best_epoch})"
+            f"{file_name} best: auc={best_auc:.4f} acc={best_acc:.4f} prc={best_prc:.4f} mcc={best_mcc:.4f} "  # human-readable summary of best validation metrics
+            f"(epoch={best_epoch})"  # epoch at which these metrics were achieved
         )
-        log_both(summary_line, color="green", attrs=["bold"])
-        
-        best_summary = {
-            "run_name": run_name,
-            "data_file": file_name,
-            "best_epoch": int(best_epoch),
-            "best_val_auc": float(best_auc),
-            "best_val_acc": float(best_acc),
-            "best_val_prc": float(best_prc),
-            "best_val_mcc": float(best_mcc),
-            "seed": int(args.seed),
-            "device": str(device),
-            "checkpoint": str((model_dir / f"{run_name}.pth").resolve()),
-            "log_file": str(log_path.resolve()),
-            "config_file": str(config_path.resolve()),
-        }
-        best_path = metrics_dir / f"{run_name}_best.json"
-        with open(best_path, "w", encoding="utf-8") as f:
-            json.dump(best_summary, f, indent=2)
-        log_both(f"[BEST] {best_path}")
+        log_both(summary_line, color="green", attrs=["bold"])  # write the summary line to log file and console
 
-        log_fp.close()
+        best_summary = {
+            "run_name": run_name,  # identifier for this training run
+            "data_file": file_name,  # dataset/RBP this run trained on
+            "best_epoch": int(best_epoch),  # epoch of the best checkpoint
+            "best_val_auc": float(best_auc),  # best validation AUC
+            "best_val_acc": float(best_acc),  # validation accuracy at best checkpoint
+            "best_val_prc": float(best_prc),  # validation PR-AUC at best checkpoint
+            "best_val_mcc": float(best_mcc),  # validation MCC at best checkpoint
+            "seed": int(args.seed),  # seed used for this run
+            "device": str(device),  # device the run executed on
+            "checkpoint": str((model_dir / f"{run_name}.pth").resolve()),  # absolute path to the saved model checkpoint
+            "log_file": str(log_path.resolve()),  # absolute path to this run's log file
+            "config_file": str(config_path.resolve()),  # absolute path to this run's config JSON
+        }
+        best_path = metrics_dir / f"{run_name}_best.json"  # path where the best-metrics summary is saved
+        with open(best_path, "w", encoding="utf-8") as f:
+            json.dump(best_summary, f, indent=2)  # persist the best-metrics summary as pretty-printed JSON
+        log_both(f"[BEST] {best_path}")  # record where the best-metrics summary was saved
+
+        log_fp.close()  # close the run's log file handle
 
         # Report total training time
-        end_time = time.time()
-        time_cost = end_time - start_time
-        print("Time cost: {:.2f} min".format(time_cost / 60))
+        end_time = time.time()  # wall-clock end time
+        time_cost = end_time - start_time  # total elapsed training time in seconds
+        print("Time cost: {:.2f} min".format(time_cost / 60))  # print total training duration in minutes
 
 
     if args.validate:
@@ -404,78 +312,45 @@ def main(args):
         # Fix random seed to ensure deterministic evaluation
         fix_seed(args.seed)
 
-        # Construct paths to input FASTA files
-        neg_path = os.path.join(data_path, file_name + '_neg.fa')
-        pos_path = os.path.join(data_path, file_name + '_pos.fa')
-
-        # Load sequences, secondary structure annotations, and labels
-        sequences, structs, label = read_fasta(neg_path, pos_path)
-        
-        # Generate transformer-based sequence embeddings and attention maps
-        Transformer_emb, attention_weight = build_Transformer_embeddings(
-            sequences=list(sequences),
-            transformer_path=args.Transformer_path,
-            device=device,
-            k=1,
-            transpose_to_ch_first=True
+        # Build loaders (features computed once); evaluate only on the sealed test split,
+        # which matches the partition held out during --train (same seed -> identical split).
+        _, _, test_loader = build_split_loaders(
+            data_file=file_name,  # dataset identifier to load
+            data_path=data_path,  # root directory containing the dataset files
+            transformer_path=args.Transformer_path,  # pretrained transformer used to embed RNA sequences
+            device=device,  # device on which embeddings/features are computed
+            seed=args.seed,  # seed controlling the split (must match the training run's seed)
+            max_length=max_length,  # sequence length used for padding/truncation
+            transformer_batch_size=args.batch_size,  # batch size for transformer embedding extraction
         )
-
-        # Build fixed-length structural feature tensor
-        structure = build_structure_tensor(structs, max_length)
-
-        # Load biochemical features
-        biochem = dealwithdata(args.data_file).transpose([0, 2, 1])
-
-        # Load motif prior matrix
-        motif = get_motif_prior_matrix(args.data_file)
-
-        # Split dataset into train / validation / test subsets.
-        # Only the sealed test split is used for evaluation here; it matches the
-        # partition held out during --train (same seed -> identical split).
-        [train_emb, train_attn, train_struc, train_motif, train_biochem, train_label], \
-        [val_emb, val_attn, val_struc, val_motif, val_biochem, val_label], \
-        [test_emb, test_attn, test_struc, test_motif, test_biochem, test_label] = split_dataset(
-            Transformer_emb,
-            attention_weight,
-            structure,
-            motif,
-            biochem,
-            label
-        )
-
-        # Construct Dataset and DataLoader for evaluation
-        test_set = myDataset(
-            test_emb, test_attn, test_struc, test_motif, test_biochem, test_label
-        )
-        test_loader = DataLoader(test_set, batch_size=32 * 8, shuffle=False)
 
         # Initialize model and load saved checkpoint
-        model = BRIDGE().to(device)
-        model_file = os.path.join(args.model_save_path, file_name + '.pth')
+        model = BRIDGE().to(device)  # construct a fresh BRIDGE model instance on the target device
+        model_file = os.path.join(args.model_save_path, file_name + '.pth')  # expected path to the trained checkpoint for this dataset
 
         if not os.path.exists(model_file):
-            print('Model file does not exist! Please train first and save the model')
-            exit()
+            print('Model file does not exist! Please train first and save the model')  # warn the user that no checkpoint was found
+            exit()  # abort since there is nothing to evaluate
 
-        model.load_state_dict(torch.load(model_file))
-        model.eval()
+        model.load_state_dict(torch.load(model_file))  # load the trained weights into the model
+        model.eval()  # switch to evaluation mode (disables dropout, freezes batch-norm stats)
 
         # Define evaluation loss (used only for reporting)
-        criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(2))
+        criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(2))  # same loss as training, used here only to compute a reportable loss value
 
         # Run validation and collect predictions
-        met, y_all, p_all = validate(model, device, test_loader, criterion)
+        met, y_all, p_all = validate(model, device, test_loader, criterion)  # run the model over the test loader and compute metrics/predictions
 
         # Extract evaluation metrics
-        best_auc = met.auc
-        best_acc = met.acc
-        best_auprc = met.prc
-        best_mcc = met.mcc
+        best_auc = met.auc  # ROC-AUC on the test split
+        best_acc = met.acc  # accuracy on the test split
+        best_auprc = met.prc  # PR-AUC on the test split
+        best_mcc = met.mcc  # Matthews correlation coefficient on the test split
 
         # Print evaluation results
         print(
             "{} auc: {:.4f} acc: {:.4f} auprc: {:.4f} mcc: {:.4f}".format(
-                file_name, best_auc, best_acc, best_auprc, best_mcc
+                file_name, best_auc, best_acc, best_auprc, best_mcc  # format test-set metrics for console output
             )
         )
 
@@ -491,74 +366,45 @@ def main(args):
         fix_seed(args.seed)
 
         # Resolve the appropriate dynamic model name based on dataset identifier
-        model_file = resolve_dynamic_model_name(file_name)
-        model_file = os.path.join(args.model_save_path, model_file + '.pth')
+        model_file = resolve_dynamic_model_name(file_name)  # map this dataset/cell-line to the checkpoint trained on a related condition
+        model_file = os.path.join(args.model_save_path, model_file + '.pth')  # full path to that cross-condition checkpoint
 
         if not os.path.exists(model_file):
-            print('Model file does not exitsts! Please train first and save the model')
-            exit()
+            print('Model file does not exitsts! Please train first and save the model')  # warn that the resolved checkpoint is missing
+            exit()  # abort since there is nothing to predict with
 
-        # Load input FASTA files
-        neg_path = os.path.join(data_path, file_name + '_neg.fa')
-        pos_path = os.path.join(data_path, file_name + '_pos.fa')
-
-        # Read sequences, structures, and labels
-        sequences, structs, label = read_fasta(neg_path, pos_path)
-        
-        # Generate transformer embeddings and attention weights
-        Transformer_emb, attention_weight = build_Transformer_embeddings(
-            sequences=list(sequences),
-            transformer_path=args.Transformer_path,
-            device=device,
-            k=1,
-            transpose_to_ch_first=True
+        # Build loaders (features computed once); cross cell-line prediction is evaluated on
+        # the sealed test split for consistency with --validate.
+        _, _, test_loader = build_split_loaders(
+            data_file=file_name,  # dataset identifier to load
+            data_path=data_path,  # root directory containing the dataset files
+            transformer_path=args.Transformer_path,  # pretrained transformer used to embed RNA sequences
+            device=device,  # device on which embeddings/features are computed
+            seed=args.seed,  # seed controlling the split
+            max_length=max_length,  # sequence length used for padding/truncation
+            transformer_batch_size=args.batch_size,  # batch size for transformer embedding extraction
         )
-
-        # Build structural, biochemical, and motif prior features
-        structure = build_structure_tensor(structs, max_length)
-        biochem = dealwithdata(args.data_file).transpose([0, 2, 1])
-        motif = get_motif_prior_matrix(args.data_file)
-
-        # Split dataset into train / validation / test subsets.
-        # Cross cell-line prediction is evaluated on the sealed test split for
-        # consistency with --validate.
-        [train_emb, train_attn, train_struc, train_motif, train_biochem, train_label], \
-        [val_emb, val_attn, val_struc, val_motif, val_biochem, val_label], \
-        [test_emb, test_attn, test_struc, test_motif, test_biochem, test_label] = split_dataset(
-            Transformer_emb,
-            attention_weight,
-            structure,
-            motif,
-            biochem,
-            label
-        )
-
-        # Create Dataset and DataLoader for dynamic prediction
-        test_set = myDataset(
-            test_emb, test_attn, test_struc, test_motif, test_biochem, test_label
-        )
-        test_loader = DataLoader(test_set, batch_size=32 * 8, shuffle=False)
 
         # Load dynamic BRIDGE model checkpoint
-        model = BRIDGE().to(device)
-        model.load_state_dict(torch.load(model_file))
-        model.eval()
+        model = BRIDGE().to(device)  # construct a fresh BRIDGE model instance on the target device
+        model.load_state_dict(torch.load(model_file))  # load the cross-condition checkpoint's weights
+        model.eval()  # switch to evaluation mode
 
         # Loss is used only for metric computation
-        criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(2))
+        criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(2))  # same loss as training, used here only for reportable metrics
 
         # Perform prediction and evaluation
-        met, y_all, p_all = validate(model, device, test_loader, criterion)
+        met, y_all, p_all = validate(model, device, test_loader, criterion)  # run the cross-condition model over the test loader
 
         # Report dynamic prediction performance
-        best_auc = met.auc
-        best_acc = met.acc
-        best_auprc = met.prc
-        best_mcc = met.mcc
+        best_auc = met.auc  # ROC-AUC of the cross-condition prediction
+        best_acc = met.acc  # accuracy of the cross-condition prediction
+        best_auprc = met.prc  # PR-AUC of the cross-condition prediction
+        best_mcc = met.mcc  # MCC of the cross-condition prediction
         print(
             "Dynamic prediction mode. {} auc: {:.4f} acc: {:.4f} "
             "auprc: {:.4f} mcc: {:.4f}".format(
-                file_name, best_auc, best_acc, best_auprc, best_mcc
+                file_name, best_auc, best_acc, best_auprc, best_mcc  # format cross-condition metrics for console output
             )
         )
 
@@ -572,33 +418,33 @@ if __name__ == '__main__':
     controls a specific aspect of data input, model configuration, or
     execution mode.
     """
-    
+
     # Initialize argument parser
-    parser = argparse.ArgumentParser(description='Welcome to BRIDGE!')
-    
+    parser = argparse.ArgumentParser(description='Welcome to BRIDGE!')  # sets up the CLI parser with a friendly description
+
     # Dataset and path configuration
-    parser.add_argument('--data_file', default='AUH_HepG2', type=str, help='RBP to train or validate')
-    parser.add_argument('--data_path', default='./dataset', type=str, help='The data path')
-    parser.add_argument("--results_dir",default="./results",type=str,help="Root directory for outputs; will create logs/, model/, metrics/ under it")
-    parser.add_argument('--Transformer_path', default='./RBPformer', type=str, help='BERT model path, in case you have another BERT')
-    parser.add_argument('--model_save_path', default='./results/model', type=str, help='Save the trained model for dynamic prediction')
-    parser.add_argument('--batch_size', default=2048, type=int, help='The batch size for BERT embedding generation')
-    
+    parser.add_argument('--data_file', default='AUH_HepG2', type=str, help='RBP to train or validate')  # which dataset/RBP to use
+    parser.add_argument('--data_path', default='./dataset', type=str, help='The data path')  # root directory of input data
+    parser.add_argument("--results_dir",default="./results",type=str,help="Root directory for outputs; will create logs/, model/, metrics/ under it")  # where all run outputs are written
+    parser.add_argument('--Transformer_path', default='./RBPformer', type=str, help='BERT model path, in case you have another BERT')  # path to the pretrained RNA transformer used for embeddings
+    parser.add_argument('--model_save_path', default='./results/model', type=str, help='Save the trained model for dynamic prediction')  # directory to save/load model checkpoints
+    parser.add_argument('--batch_size', default=2048, type=int, help='The batch size for BERT embedding generation')  # batch size used specifically for transformer embedding extraction
+
     # Execution mode flags
-    parser.add_argument('--train', default=False, action='store_true', help='Run training mode')
-    parser.add_argument('--validate', default=False, action='store_true', help='Run validation mode')
-    parser.add_argument('--dynamic_predict', default=False, action='store_true', help='Run dynamic prediction mode')
+    parser.add_argument('--train', default=False, action='store_true', help='Run training mode')  # enable the training branch of main()
+    parser.add_argument('--validate', default=False, action='store_true', help='Run validation mode')  # enable the validate-on-test-split branch of main()
+    parser.add_argument('--dynamic_predict', default=False, action='store_true', help='Run dynamic prediction mode')  # enable the cross-condition prediction branch of main()
 
     # Output and reproducibility settings
-    parser.add_argument('--outdir', default='./results/rsid', type=str, help='Save the output files')
-    parser.add_argument('--seed', default=42, type=int, help='The random seed')
-    
+    parser.add_argument('--outdir', default='./results/rsid', type=str, help='Save the output files')  # (unused directly in main(), reserved for downstream output scripts)
+    parser.add_argument('--seed', default=42, type=int, help='The random seed')  # random seed for reproducibility
+
     # Hardware and optimization settings
-    parser.add_argument('--device_num', type=int, default=0, help='The GPU device number to use')
-    parser.add_argument('--use_cpu', action='store_true', help='Force using CPU even if GPU is available')
-    parser.add_argument('--lr', type=float, default=0.001, help='Initial learning rate')
-    parser.add_argument('--early_stopping', type=int, default=10, help='Early stopping epochs')
-    
+    parser.add_argument('--device_num', type=int, default=0, help='The GPU device number to use')  # which CUDA device index to use
+    parser.add_argument('--use_cpu', action='store_true', help='Force using CPU even if GPU is available')  # force CPU execution
+    parser.add_argument('--lr', type=float, default=0.001, help='Initial learning rate')  # initial learning rate passed to the optimizer
+    parser.add_argument('--early_stopping', type=int, default=10, help='Early stopping epochs')  # patience for early stopping
+
     # Parse command-line arguments and launch main pipeline
-    args = parser.parse_args()
-    main(args)
+    args = parser.parse_args()  # parse sys.argv into a Namespace of the options above
+    main(args)  # run the selected pipeline stage(s) with the parsed configuration

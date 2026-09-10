@@ -112,11 +112,11 @@ Notes and caveats
   The model is moved to ``device``; input tensors are also moved accordingly.
 """
 
-from typing import Sequence, Tuple
-import numpy as np
-import torch
-import torch.utils.data
-from transformers import BertTokenizer, BertModel
+from typing import Sequence, Tuple  # type hints for the public build_Transformer_embeddings signature
+import numpy as np  # stacking per-sequence embedding/attention lists into arrays
+import torch  # tensors, no_grad, device handling
+import torch.utils.data  # DataLoader for batching k-mer strings through the Transformer
+from transformers import BertTokenizer, BertModel  # HuggingFace tokenizer/model classes loaded from transformer_path
 
 
 def seq2kmer(seq: str, k: int) -> str:
@@ -142,13 +142,13 @@ def seq2kmer(seq: str, k: int) -> str:
         - Downstream modules often assume all sequences produce the same token length.
           If lengths vary, later stacking into a numeric NumPy array may produce dtype=object.
     """
-    seq_length = len(seq)
-    
+    seq_length = len(seq)  # total sequence length, bounds the sliding window
+
     # Generate overlapping k-mers with stride 1
-    kmer = [seq[x:x + k] for x in range(seq_length - k + 1)]
+    kmer = [seq[x:x + k] for x in range(seq_length - k + 1)]  # slide a length-k window across the sequence with stride 1
 
     # Join k-mers with spaces to match tokenizer input format
-    kmers = " ".join(kmer)
+    kmers = " ".join(kmer)  # whitespace-delimited so the tokenizer treats each k-mer as one token
     return kmers
 
 
@@ -192,55 +192,55 @@ def rbpformer_encode_batch(
         - `seq_len` is computed from `attention_mask` (number of ones), so padding positions
           are excluded automatically.
     """
-    features = []
-    seq = []
-    attn_adj = []
-    
-    for sequences in dataloader:
+    features = []  # accumulates per-sequence embedding arrays across all batches
+    seq = []  # accumulates raw batches of k-mer strings (kept for potential debugging/inspection)
+    attn_adj = []  # accumulates per-sequence attention-derived arrays across all batches
+
+    for sequences in dataloader:  # iterate over batches of k-mer strings
         # sequences: list of space-separated k-mer strings
-        seq.append(sequences)
-        
+        seq.append(sequences)  # keep a record of this batch's raw input strings
+
         # Tokenize sequences and move tensors to target device
-        ids = tokenizer.batch_encode_plus(sequences, add_special_tokens=True)
-        input_ids = torch.tensor(ids['input_ids']).to(device)
-        token_type_ids = torch.tensor(ids['token_type_ids']).to(device)
-        attention_mask = torch.tensor(ids['attention_mask']).to(device)
-        
+        ids = tokenizer.batch_encode_plus(sequences, add_special_tokens=True)  # tokenize with [CLS]/[SEP] added, padding to batch max length
+        input_ids = torch.tensor(ids['input_ids']).to(device)  # token id tensor, moved to the inference device
+        token_type_ids = torch.tensor(ids['token_type_ids']).to(device)  # segment ids (all zero for single-sequence input), moved to device
+        attention_mask = torch.tensor(ids['attention_mask']).to(device)  # 1 for real tokens, 0 for padding, moved to device
+
         # Forward pass without gradient tracking
-        with torch.no_grad():
-            outputs = model(input_ids=input_ids, 
-                            attention_mask=attention_mask, 
+        with torch.no_grad():  # inference only, no need to build the autograd graph
+            outputs = model(input_ids=input_ids,
+                            attention_mask=attention_mask,
                             token_type_ids=token_type_ids,
-                            output_attentions=True)
-            
+                            output_attentions=True)  # request per-layer attention matrices in addition to hidden states
+
             # outputs[0]: last hidden states (B, L, C)
-            embedding = outputs[0]
-            
+            embedding = outputs[0]  # final-layer token embeddings for this batch
+
             # outputs.attentions: tuple of attention matrices from all layers
-            attention_w = outputs.attentions
-            del outputs
-            
+            attention_w = outputs.attentions  # tuple of (B, heads, L, L) attention tensors, one per Transformer layer
+            del outputs  # free the rest of the output object (other layers' hidden states, etc.) promptly
+
         # Move outputs to CPU and convert to NumPy
-        embedding = embedding.cpu().numpy()
-        
+        embedding = embedding.cpu().numpy()  # detach from GPU/device, convert to NumPy for downstream storage
+
         # Use last layer attention and average over attention heads
-        attention_w = attention_w[-1].mean(1)
-        attention_w = attention_w.cpu().numpy()
-        
+        attention_w = attention_w[-1].mean(1)  # take only the final Transformer layer, average across attention heads -> (B, L, L)
+        attention_w = attention_w.cpu().numpy()  # move to CPU NumPy for downstream storage
+
         # Remove special tokens ([CLS], [SEP]) and pad positions
-        for seq_num in range(len(embedding)):
-            seq_len = (attention_mask[seq_num] == 1).sum()
-            
+        for seq_num in range(len(embedding)):  # process each sequence in this batch individually (lengths may differ)
+            seq_len = (attention_mask[seq_num] == 1).sum()  # number of real (non-padding) tokens, including [CLS]/[SEP]
+
             # Token embeddings excluding special tokens
-            seq_emd = embedding[seq_num][1:seq_len - 1]
-            
+            seq_emd = embedding[seq_num][1:seq_len - 1]  # drop position 0 ([CLS]) and the last real position ([SEP]); padding beyond seq_len is already excluded by the upper slice bound
+
             # Corresponding attention submatrix
-            seq_attn = attention_w[seq_num][1:seq_len - 1]
-            
-            features.append(seq_emd)
-            attn_adj.append(seq_attn)
-            
-    return features, attn_adj
+            seq_attn = attention_w[seq_num][1:seq_len - 1]  # same special-token trim applied to the attention rows (see module docstring: only rows are sliced, not columns)
+
+            features.append(seq_emd)  # store this sequence's trimmed embedding matrix
+            attn_adj.append(seq_attn)  # store this sequence's trimmed attention matrix
+
+    return features, attn_adj  # lists of per-sequence arrays (possibly ragged if token lengths differ)
 
 
 def gen_Transformer_embedding(protein, model, tokenizer, device, k, Transformer_batch_size):
@@ -272,35 +272,35 @@ def gen_Transformer_embedding(protein, model, tokenizer, device, k, Transformer_
                 If all sequences yield identical token length L, expected numeric shape is (N, L, L).
                 Otherwise may become dtype=object.
     """
-    sequences1 = protein
-    sequences = []
-    Transformer_Feature = []
-    Attention_adjacent = []
-    
+    sequences1 = protein  # alias; despite the name, these are the raw nucleotide sequences to embed
+    sequences = []  # will hold k-mer-tokenized (space-separated) versions of each sequence
+    Transformer_Feature = []  # will hold per-sequence embedding arrays after NumPy conversion
+    Attention_adjacent = []  # will hold per-sequence attention arrays after NumPy conversion
+
     # Convert each raw sequence into space-separated k-mers
-    for seq in sequences1:
-        seq = seq.strip()
-        ss = seq2kmer(seq, k)
-        sequences.append(ss)
-        
+    for seq in sequences1:  # tokenize every input sequence
+        seq = seq.strip()  # remove leading/trailing whitespace that would corrupt k-mer boundaries
+        ss = seq2kmer(seq, k)  # convert to a whitespace-delimited k-mer string
+        sequences.append(ss)  # collect the tokenized string
+
     # Use a large batch size for efficient inference
-    dataloader = torch.utils.data.DataLoader(sequences, batch_size=Transformer_batch_size, shuffle=False)
-    
+    dataloader = torch.utils.data.DataLoader(sequences, batch_size=Transformer_batch_size, shuffle=False)  # batch the k-mer strings; no shuffling since order must be preserved for downstream alignment
+
     # Run Transformer inference
-    Features, Attn_adj = rbpformer_encode_batch(dataloader, model, tokenizer, device)
-    
+    Features, Attn_adj = rbpformer_encode_batch(dataloader, model, tokenizer, device)  # run the model over every batch, get per-sequence embedding/attention lists
+
     # Convert lists to NumPy arrays
-    for i in Features:
-        Feature = np.array(i)
-        Transformer_Feature.append(Feature)
-        
-    for i in Attn_adj:
-        attn = np.array(i)
-        Attention_adjacent.append(attn)
-        
-    embeds = np.array(Transformer_Feature)
-    attns = np.array(Attention_adjacent)
-    
+    for i in Features:  # each i is one sequence's (L_i, C) embedding matrix
+        Feature = np.array(i)  # convert to a NumPy array
+        Transformer_Feature.append(Feature)  # collect for final stacking
+
+    for i in Attn_adj:  # each i is one sequence's (L_i, L_i) attention matrix
+        attn = np.array(i)  # convert to a NumPy array
+        Attention_adjacent.append(attn)  # collect for final stacking
+
+    embeds = np.array(Transformer_Feature)  # stack into (N, L, C) if all L_i match, else dtype=object
+    attns = np.array(Attention_adjacent)  # stack into (N, L, L) if all L_i match, else dtype=object
+
     return embeds, attns
 
 
@@ -356,17 +356,17 @@ def build_Transformer_embeddings(
         - This function sets model.eval() and runs under torch.no_grad().
     """
     # Load tokenizer and model
-    tokenizer = BertTokenizer.from_pretrained(transformer_path, do_lower_case=False)
-    model = BertModel.from_pretrained(transformer_path).to(device).eval()
-    
+    tokenizer = BertTokenizer.from_pretrained(transformer_path, do_lower_case=False)  # load the k-mer tokenizer; case preserved since nucleotide k-mers are already uppercase
+    model = BertModel.from_pretrained(transformer_path).to(device).eval()  # load pretrained weights, move to device, and set to inference mode
+
     # Run embedding extraction without gradient computation
-    with torch.no_grad():
+    with torch.no_grad():  # no gradients needed anywhere in this feature-extraction path
         Transformer_embedding, attention_weight = gen_Transformer_embedding(
             list(sequences), model, tokenizer, device, k, Transformer_batch_size
-        )
+        )  # tokenize, batch, and run the model to get raw (N, L, C) embeddings and (N, L, L) attention
 
     # Convert to channel-first format if required by downstream modules
-    if transpose_to_ch_first:
-        Transformer_embedding = Transformer_embedding.transpose([0, 2, 1])
+    if transpose_to_ch_first:  # BRIDGE's conv-based branches expect channels before the sequence axis
+        Transformer_embedding = Transformer_embedding.transpose([0, 2, 1])  # (N, L, C) -> (N, C, L)
 
     return Transformer_embedding, attention_weight

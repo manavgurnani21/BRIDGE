@@ -1,0 +1,26 @@
+dataset,rbp,tier,coverage,defect_kind,evidence
+AGO_HEK293,AGO,TIER 1 - WRONG PROTEIN,,wrong protein,"FBXW7 (byte-exact, 707aa); 0 overlap w/ AGO1/2/3"
+FMR1_HEK293,FMR1,TIER 1 - WRONG PROTEIN,,wrong/unusable fragment,65aa vs 632aa canonical; k-mer overlap 0.143
+FMR1_K562,FMR1,TIER 1 - WRONG PROTEIN,,wrong/unusable fragment,65aa vs 632aa canonical; k-mer overlap 0.143
+PUS1_K562,PUS1,TIER 1 - WRONG PROTEIN,,wrong organism,Candida africana PUS1; k-mer overlap 0.000 vs human
+AGGF1_HepG2,AGGF1,TIER 2 - incomplete,414/714 = 58%,truncated/short isoform,"correct protein, 58% coverage"
+AGGF1_K562,AGGF1,TIER 2 - incomplete,414/714 = 58%,truncated/short isoform,"correct protein, 58% coverage"
+C17ORF85_HEK293,C17ORF85,TIER 2 - incomplete,334/620 = 54%,truncated/short isoform,"correct protein, 54% coverage"
+CPSF3_HEK293,CPSF3,TIER 2 - incomplete,554/684 = 81%,truncated/short isoform,"correct protein, 81% coverage"
+FAM120A_HepG2,FAM120A,TIER 2 - incomplete,495/1118 = 44%,truncated/short isoform,"correct protein, 44% coverage"
+FAM120A_K562,FAM120A,TIER 2 - incomplete,495/1118 = 44%,truncated/short isoform,"correct protein, 44% coverage"
+HLTF_HepG2,HLTF,TIER 2 - incomplete,455/1009 = 45%,truncated/short isoform,"correct protein, 45% coverage"
+HLTF_K562,HLTF,TIER 2 - incomplete,455/1009 = 45%,truncated/short isoform,"correct protein, 45% coverage"
+ILF3_K562,ILF3,TIER 2 - incomplete,441/894 = 49%,truncated/short isoform,"correct protein, 49% coverage"
+LARP7_HepG2,LARP7,TIER 2 - incomplete,288/582 = 49%,truncated/short isoform,"correct protein, 49% coverage"
+LARP7_K562,LARP7,TIER 2 - incomplete,288/582 = 49%,truncated/short isoform,"correct protein, 49% coverage"
+MOV10_HEK293,MOV10,TIER 2 - incomplete,561/1003 = 56%,truncated/short isoform,"correct protein, 56% coverage"
+NIPBL_K562,NIPBL,TIER 2 - incomplete,1176/2804 = 42%,truncated/short isoform,"correct protein, 42% coverage"
+NOP56_HEK293,NOP56,TIER 2 - incomplete,447/594 = 75%,truncated/short isoform,"correct protein, 75% coverage"
+NOP58_HEK293,NOP58,TIER 2 - incomplete,522/529 = 99%,truncated/short isoform,"correct protein, 99% coverage"
+RPS3_HepG2,RPS3,TIER 2 - incomplete,133/243 = 55%,truncated/short isoform,"correct protein, 55% coverage"
+RPS3_K562,RPS3,TIER 2 - incomplete,133/243 = 55%,truncated/short isoform,"correct protein, 55% coverage"
+SAFB2_K562,SAFB2,TIER 2 - incomplete,526/953 = 55%,truncated/short isoform,"correct protein, 55% coverage"
+SF3B1_K562,SF3B1,TIER 2 - incomplete,501/1304 = 38%,truncated/short isoform,"correct protein, 38% coverage"
+SLTM_HepG2,SLTM,TIER 2 - incomplete,502/1034 = 49%,truncated/short isoform,"correct protein, 49% coverage"
+SLTM_K562,SLTM,TIER 2 - incomplete,502/1034 = 49%,truncated/short isoform,"correct protein, 49% coverage"

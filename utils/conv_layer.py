@@ -83,11 +83,11 @@ Notes and caveats
   you can add a ``dropout`` argument and store it as ``self.dropout_p``.
 """
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from math import sqrt
-from torch_conv_kan.kan_convs import FastKANConv1DLayer
+import torch  # core tensor library
+import torch.nn as nn  # layer/module base classes
+import torch.nn.functional as F  # functional dropout used in forward passes
+from math import sqrt  # unused import (kept as in original)
+from torch_conv_kan.kan_convs import FastKANConv1DLayer  # KAN-parameterized 1D conv operator
 
 
 class Conv2d(nn.Module):
@@ -135,13 +135,13 @@ class Conv2d(nn.Module):
     """
     def __init__(self, in_channels, out_channels, kernel_size,
                  stride=1, if_bias = False, relu=True, same_padding=True, bn=True):
-        super(Conv2d, self).__init__()
-        p0 = int((kernel_size[0] - 1) / 2) if same_padding else 0
-        p1 = int((kernel_size[1] - 1) / 2) if same_padding else 0
-        padding = (p0, p1)
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding=padding, bias=True if if_bias else False)
-        self.bn = nn.BatchNorm2d(out_channels) if bn else None
-        self.relu = nn.ReLU(inplace=True) if relu else None
+        super(Conv2d, self).__init__()  # standard nn.Module init
+        p0 = int((kernel_size[0] - 1) / 2) if same_padding else 0  # "same" padding along height (valid for odd kH)
+        p1 = int((kernel_size[1] - 1) / 2) if same_padding else 0  # "same" padding along width (valid for odd kW)
+        padding = (p0, p1)  # combined (pad_h, pad_w) for Conv2d
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding=padding, bias=True if if_bias else False)  # the underlying 2D convolution
+        self.bn = nn.BatchNorm2d(out_channels) if bn else None  # optional per-channel normalization
+        self.relu = nn.ReLU(inplace=True) if relu else None  # optional nonlinearity
 
     def forward(self, x):
         """
@@ -153,13 +153,13 @@ class Conv2d(nn.Module):
         Returns:
             torch.Tensor: Output tensor of shape (N, C_out, H_out, W_out).
         """
-        x = self.conv(x)
+        x = self.conv(x)  # convolve
         if self.bn is not None:
-            x = self.bn(x)
+            x = self.bn(x)  # normalize per channel
         if self.relu is not None:
-            x = self.relu(x)
-        x = F.dropout(x, 0.3, training=self.training)
-        return x
+            x = self.relu(x)  # apply nonlinearity
+        x = F.dropout(x, 0.3, training=self.training)  # regularize; no-op in eval mode
+        return x  # (N, C_out, H_out, W_out)
 
 
 class Conv1d(nn.Module): 
@@ -208,13 +208,13 @@ class Conv1d(nn.Module):
     """
     def __init__(self, in_channels, out_channels, kernel_size, stride=(1,),
                  dilation=(1,), if_bias=False, relu=True, same_padding=True, bn=True):
-        super(Conv1d, self).__init__()
-        p0 = int((kernel_size[0] - 1) / 2) if same_padding else 0
+        super(Conv1d, self).__init__()  # standard nn.Module init
+        p0 = int((kernel_size[0] - 1) / 2) if same_padding else 0  # "same" padding along length (valid for odd k)
         self.conv = nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=p0,
-                              dilation=dilation, bias=True if if_bias else False)
-        self.bn = nn.BatchNorm1d(out_channels) if bn else None
-        self.relu = nn.ReLU(inplace=True) if relu else None
-        # self.relu = nn.SELU(inplace=True) if relu else None
+                              dilation=dilation, bias=True if if_bias else False)  # the underlying 1D convolution
+        self.bn = nn.BatchNorm1d(out_channels) if bn else None  # optional per-channel normalization
+        self.relu = nn.ReLU(inplace=True) if relu else None  # optional nonlinearity
+        # self.relu = nn.SELU(inplace=True) if relu else None  # alternative activation, unused
 
     def forward(self, x):
         """
@@ -226,13 +226,13 @@ class Conv1d(nn.Module):
         Returns:
             torch.Tensor: Output tensor of shape (N, C_out, L_out).
         """
-        x = self.conv(x)
+        x = self.conv(x)  # convolve
         if self.bn is not None:
-            x = self.bn(x)
+            x = self.bn(x)  # normalize per channel
         if self.relu is not None:
-            x = self.relu(x)
-        x = F.dropout(x, 0.3, training=self.training)
-        return x
+            x = self.relu(x)  # apply nonlinearity
+        x = F.dropout(x, 0.3, training=self.training)  # regularize; no-op in eval mode
+        return x  # (N, C_out, L_out)
 
     
 class SimpleConvKAN_1layer(nn.Module):
@@ -287,12 +287,12 @@ class SimpleConvKAN_1layer(nn.Module):
             same_padding=True,
             bn=True,
             dropout: float = 0.3):
-        super(SimpleConvKAN_1layer, self).__init__()
-        p0 = int((kernel_size - 1) / 2) if same_padding else 0
-        self.conv = FastKANConv1DLayer(input_channels, out_channels, kernel_size=kernel_size, groups=groups, padding=p0, stride=1, dilation=1, grid_size=grid_size, dropout=dropout)
-        self.bn = nn.BatchNorm1d(out_channels) if bn else None
-        # self.drop = nn.Dropout(p=0.3)
-        
+        super(SimpleConvKAN_1layer, self).__init__()  # standard nn.Module init
+        p0 = int((kernel_size - 1) / 2) if same_padding else 0  # "same" padding along length (valid for odd k)
+        self.conv = FastKANConv1DLayer(input_channels, out_channels, kernel_size=kernel_size, groups=groups, padding=p0, stride=1, dilation=1, grid_size=grid_size, dropout=dropout)  # KAN-based convolution (stride/dilation fixed to 1); dropout is applied internally
+        self.bn = nn.BatchNorm1d(out_channels) if bn else None  # optional per-channel normalization
+        # self.drop = nn.Dropout(p=0.3)  # unused: dropout already handled inside FastKANConv1DLayer
+
     def forward(self, x):
         """
         Forward pass.
@@ -303,8 +303,8 @@ class SimpleConvKAN_1layer(nn.Module):
         Returns:
             torch.Tensor: Output tensor of shape (N, C_out, L_out).
         """
-        x = self.conv(x)
+        x = self.conv(x)  # KAN convolution (includes its own internal dropout)
         if self.bn is not None:
-            x = self.bn(x)
-        # x = F.dropout(x, 0.3, training=self.training)
-        return x
+            x = self.bn(x)  # normalize per channel
+        # x = F.dropout(x, 0.3, training=self.training)  # unused: would double-apply dropout on top of FastKANConv1DLayer's internal dropout
+        return x  # (N, C_out, L_out)
